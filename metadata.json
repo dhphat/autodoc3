@@ -1,0 +1,5 @@
+{
+  "name": "AutoDoc Legal Generator",
+  "description": "A smart tool to automate contract and acceptance minutes creation using Docx templates and AI-powered data extraction.",
+  "requestFramePermissions": []
+}
