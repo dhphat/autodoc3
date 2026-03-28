@@ -79,16 +79,18 @@ export const generateDocument = ({ file, data, fileName, images }: GenerateOptio
           const imageOpts = {
             centered: false,
             getImage: (tag: string, tagName: string) => {
-              // tagName is the variable inside {%tag_name}
-              return images[tagName] || null;
+              const imgData = images[tagName];
+              console.log(`Rendering image tag: ${tagName}`, imgData ? "Found" : "Missing");
+              return imgData || null;
             },
             getSize: (img: ArrayBuffer, tag: string, tagName: string) => {
               // Standard size fallback, can be adjusted in the template as well
-              return [240, 160]; 
+              return [250, 180]; 
             },
           };
           options.modules = [new ImageModule(imageOpts)];
         } else if (images && !ImageModule) {
+          alert("Cảnh báo: Không tìm thấy trình xử lý ảnh (ImageModule). Ảnh sẽ không hiện trong Word.");
           console.warn("ImageModule not found. Images will not be rendered in the document.");
         }
 
