@@ -8,10 +8,22 @@ const DocUtils = (Docxtemplater as any).DocUtils;
 // ============================================================
 // Custom Image Module — compatible with docxtemplater 3.67.5
 // ============================================================
-// The old CDN "docxtemplater-image-module-free@1.1.1" relies on
+// The old CDN "docxtemplater-image-module-free@1.1.1" relied on
 // `fileTypeConfig.tagTextXml` which was REMOVED in recent versions
-// of docxtemplater.  This module is fully self-contained and uses
-// only stable, public APIs of docxtemplater 3.x.
+// of docxtemplater, AND it added rels files to xmlFileNames causing
+// docxtemplater to overwrite relationship entries during serialization.
+//
+// This module is fully self-contained and uses only stable APIs.
+//
+// KEY DESIGN DECISIONS:
+// 1. We do NOT add rels files to xmlFileNames — this prevents
+//    docxtemplater from overwriting our relationship entries.
+//    We modify rels directly via zip.file() which is safe because
+//    docxtemplater doesn't track rels by default.
+// 2. [Content_Types].xml IS tracked by docxtemplater by default,
+//    so we modify it through xmlDocuments DOM manipulation.
+// 3. Image binaries are added directly to the zip (they're never
+//    tracked by docxtemplater as XML documents).
 // ============================================================
 
 const MODULE_NAME = 'autodoc-image-module';
@@ -26,13 +38,9 @@ function createImageModule({ images, defaultSize = [450, 300] }: ImageModuleOpti
   let imageNumber = 1;
   let zip: PizZip;
   let fileType: string;
-  let xmlDocuments: Record<string, Document>;
+  let xmlDocuments: Record<string, any> = {};
 
   // ---- helpers ----
-
-  function getNextImageName() {
-    return `image_generated_${imageNumber++}.png`;
-  }
 
   /** Detect actual image type from first bytes */
   function detectImageType(buffer: ArrayBuffer): { ext: string; mime: string } {
@@ -50,25 +58,31 @@ function createImageModule({ images, defaultSize = [450, 300] }: ImageModuleOpti
       return { ext: 'gif', mime: 'image/gif' };
     }
     // WEBP: 52 49 46 46 ... 57 45 42 50
-    if (arr[0] === 0x52 && arr[1] === 0x49 && arr[2] === 0x46 && arr[3] === 0x46 &&
-        arr[8] === 0x57 && arr[9] === 0x45 && arr[10] === 0x42 && arr[11] === 0x50) {
+    if (
+      arr[0] === 0x52 && arr[1] === 0x49 && arr[2] === 0x46 && arr[3] === 0x46 &&
+      arr[8] === 0x57 && arr[9] === 0x45 && arr[10] === 0x42 && arr[11] === 0x50
+    ) {
       return { ext: 'webp', mime: 'image/webp' };
     }
     // Default to png
     return { ext: 'png', mime: 'image/png' };
   }
 
-  /** Add image file to the zip and create a relationship entry, return rId */
+  /**
+   * Add image file to the zip and create a relationship entry.
+   * Returns the numeric rId for embedding in the document XML.
+   */
   function addImageToZip(imageData: ArrayBuffer, filePath: string): number {
     const imgType = detectImageType(imageData);
     const imageName = `image_generated_${imageNumber++}.${imgType.ext}`;
     const prefix = fileType === 'docx' ? 'word' : 'ppt';
     const imagePath = `${prefix}/media/${imageName}`;
 
-    // 1. Write image binary into the ZIP
+    // ---- 1. Write image binary to zip ----
     zip.file(imagePath, imageData, { binary: true });
 
-    // 2. Determine the rels file path for the current XML document
+    // ---- 2. Add relationship via direct zip.file() (NOT xmlDocuments) ----
+    // Rels files are NOT tracked by docxtemplater, so zip.file() is safe.
     const xmlBaseName = filePath.replace(/^.*?([a-zA-Z0-9]+)\.xml$/, '$1');
     const relsFilePath = `${prefix}/_rels/${xmlBaseName}.xml.rels`;
 
@@ -77,13 +91,14 @@ function createImageModule({ images, defaultSize = [450, 300] }: ImageModuleOpti
     if (relsFile) {
       relsContent = relsFile.asText();
     } else {
+      // Create a new rels file if it doesn't exist
       relsContent =
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
         '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
         '</Relationships>';
     }
 
-    // 3. Find the next available rId
+    // Find max existing rId
     const ridMatches = [...relsContent.matchAll(/Id="rId(\d+)"/g)];
     let maxRid = 0;
     ridMatches.forEach((m) => {
@@ -91,27 +106,56 @@ function createImageModule({ images, defaultSize = [450, 300] }: ImageModuleOpti
     });
     const newRid = maxRid + 1;
 
-    // 4. Append the relationship
+    // Insert the new Relationship element
     const newRel =
       `<Relationship Id="rId${newRid}" ` +
       `Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" ` +
       `Target="media/${imageName}"/>`;
     relsContent = relsContent.replace('</Relationships>', newRel + '</Relationships>');
+    // Also handle self-closing <Relationships/> tag
+    relsContent = relsContent.replace(/<Relationships([^>]*)\/>/,
+      `<Relationships$1>${newRel}</Relationships>`);
     zip.file(relsFilePath, relsContent);
 
-    // 5. Ensure [Content_Types].xml has an entry for this extension
-    const ctFile = zip.file('[Content_Types].xml');
-    if (ctFile) {
-      let ct = ctFile.asText();
-      if (!ct.includes(`Extension="${imgType.ext}"`)) {
-        ct = ct.replace(
-          '</Types>',
-          `<Default Extension="${imgType.ext}" ContentType="${imgType.mime}"/></Types>`,
-        );
-        zip.file('[Content_Types].xml', ct);
+    // ---- 3. Update [Content_Types].xml via xmlDocuments DOM ----
+    // [Content_Types].xml IS tracked by docxtemplater (in xmlFileNames by default),
+    // so we must modify the DOM object, not the zip file.
+    const ctDoc = xmlDocuments['[Content_Types].xml'];
+    if (ctDoc) {
+      const defaults = ctDoc.getElementsByTagName('Default');
+      let found = false;
+      for (let i = 0; i < defaults.length; i++) {
+        if (defaults[i].getAttribute('Extension') === imgType.ext) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        const types = ctDoc.getElementsByTagName('Types')[0];
+        if (types) {
+          const newDefault = ctDoc.createElement('Default');
+          newDefault.setAttribute('Extension', imgType.ext);
+          newDefault.setAttribute('ContentType', imgType.mime);
+          types.appendChild(newDefault);
+          console.log(`[ImageModule] Added content type for .${imgType.ext}`);
+        }
+      }
+    } else {
+      // Fallback: modify zip directly (in case xmlDocuments doesn't have it)
+      const ctFile = zip.file('[Content_Types].xml');
+      if (ctFile) {
+        let ct = ctFile.asText();
+        if (!ct.includes(`Extension="${imgType.ext}"`)) {
+          ct = ct.replace(
+            '</Types>',
+            `<Default Extension="${imgType.ext}" ContentType="${imgType.mime}"/></Types>`,
+          );
+          zip.file('[Content_Types].xml', ct);
+        }
       }
     }
 
+    console.log(`[ImageModule] Added image: ${imagePath}, rId${newRid} in ${relsFilePath}`);
     return newRid;
   }
 
@@ -119,7 +163,7 @@ function createImageModule({ images, defaultSize = [450, 300] }: ImageModuleOpti
   function buildImageXml(rId: number, size: [number, number]): string {
     const cx = Math.round(size[0] * 9525); // pixels → EMU
     const cy = Math.round(size[1] * 9525);
-    const id = imageNumber; // unique id across the document
+    const id = rId; // use rId as unique docPr id
 
     return (
       '<w:drawing>' +
@@ -176,12 +220,10 @@ function createImageModule({ images, defaultSize = [450, 300] }: ImageModuleOpti
       zip = docxtemplater.zip;
       fileType = docxtemplater.fileType;
 
-      // Register rels & content-types files so docxtemplater tracks them
-      const relsFiles = zip
-        .file(/\.xml\.rels/)
-        .concat(zip.file(/\[Content_Types\].xml/))
-        .map((f: any) => f.name);
-      options.xmlFileNames = options.xmlFileNames.concat(relsFiles);
+      // IMPORTANT: Do NOT add rels files to xmlFileNames!
+      // If we do, docxtemplater will parse them into xmlDocuments and
+      // overwrite our zip.file() changes during serialization.
+      // Rels files are not tracked by default, which is what we want.
 
       return options;
     },
@@ -213,14 +255,14 @@ function createImageModule({ images, defaultSize = [450, 300] }: ImageModuleOpti
     },
 
     postparse(parsed: any) {
-      // Expand the tag so docxtemplater knows what XML scope to replace
-      // Non-centered → replace the <w:t> node
-      // Centered     → replace the whole <w:p> paragraph
+      // Expand the tag so docxtemplater knows what XML scope to replace.
+      // We always expand to <w:t> — the image XML will replace the <w:t> node,
+      // becoming a sibling inside the <w:r> run (which is valid Word XML).
       if (DocUtils?.traits?.expandToOne) {
         return DocUtils.traits.expandToOne(parsed, {
           moduleName: MODULE_NAME,
           getInner: ({ part }: any) => part,
-          expandTo: 'w:t', // always expand to <w:t>; we handle centering in the XML
+          expandTo: 'w:t',
         });
       }
       return parsed;
@@ -242,7 +284,7 @@ function createImageModule({ images, defaultSize = [450, 300] }: ImageModuleOpti
       try {
         const rId = addImageToZip(imgData, options.filePath);
         const xml = buildImageXml(rId, defaultSize);
-        console.log(`[ImageModule] Inserted image for "{%${tagName}}" (rId${rId})`);
+        console.log(`[ImageModule] Rendered image for "{%${tagName}}" → rId${rId}`);
         return { value: xml };
       } catch (err) {
         console.error(`[ImageModule] Failed to insert image for "{%${tagName}}":`, err);
@@ -328,6 +370,9 @@ export const generateDocument = ({ file, data, fileName, images }: GenerateOptio
           const hasAnyImage = Object.values(images).some((v) => v !== null && v !== undefined);
           if (hasAnyImage) {
             console.log('[generateDocument] Images found, attaching custom image module');
+            Object.keys(images).forEach((k) => {
+              console.log(`  - ${k}: ${images[k] ? `${images[k]!.byteLength} bytes` : 'null'}`);
+            });
             const imageModule = createImageModule({
               images,
               defaultSize: [450, 300], // ~12cm × 8cm — fits nicely inside A4
