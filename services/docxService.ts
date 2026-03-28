@@ -88,6 +88,8 @@ export const generateDocument = ({ file, data, fileName, images }: GenerateOptio
             },
           };
           options.modules = [new ImageModule(imageOpts)];
+        } else if (images && !ImageModule) {
+          console.warn("ImageModule not found. Images will not be rendered in the document.");
         }
 
         const doc = new Docxtemplater(zip, options);
