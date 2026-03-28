@@ -75,10 +75,39 @@ const GuestFormPage: React.FC = () => {
     setImagePreviews(prev => ({ ...prev, [type]: URL.createObjectURL(file) }));
   };
 
+  const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
+  const [imageErrors, setImageErrors] = useState<{ front?: boolean; back?: boolean; portrait?: boolean }>({});
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!data['ho_ten']?.trim()) { setError('Vui lòng nhập Họ tên.'); return; }
-    
+
+    // Validate all fields
+    const newFieldErrors: Record<string, boolean> = {};
+    let missingCount = 0;
+    profileFields.forEach(f => {
+      if (!data[f.key]?.trim()) {
+        newFieldErrors[f.key] = true;
+        missingCount++;
+      }
+    });
+
+    // Validate images
+    const newImageErrors: { front?: boolean; back?: boolean; portrait?: boolean } = {};
+    if (!images.front) { newImageErrors.front = true; missingCount++; }
+    if (!images.back) { newImageErrors.back = true; missingCount++; }
+    if (!images.portrait) { newImageErrors.portrait = true; missingCount++; }
+
+    setFieldErrors(newFieldErrors);
+    setImageErrors(newImageErrors);
+
+    if (missingCount > 0) {
+      setError(`Vui lòng điền đầy đủ tất cả thông tin (còn thiếu ${missingCount} mục).`);
+      // Scroll to first error
+      const firstError = document.querySelector('.border-red-400');
+      firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
     setIsSubmitting(true);
     setError('');
 
@@ -88,7 +117,7 @@ const GuestFormPage: React.FC = () => {
       const finalData: Record<string, string> = { ...data, ten_viet_tat: tenVietTat };
       const tempId = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
 
-      // Upload images (if any)
+      // Upload images
       let frontUrl: string | null = null;
       let backUrl: string | null = null;
       let portraitUrl: string | null = null;
@@ -106,9 +135,8 @@ const GuestFormPage: React.FC = () => {
       if (images.back) backUrl = await uploadImg(images.back, 'back');
       if (images.portrait) portraitUrl = await uploadImg(images.portrait, 'portrait');
 
-      // Create profile (no user_id for guest)
+      // Create profile (guest — no user_id)
       const { error: insertError } = await supabase.from('profiles').insert({
-        user_id: null,
         name: hoTen,
         data: finalData,
         id_card_front_url: frontUrl,
@@ -131,17 +159,23 @@ const GuestFormPage: React.FC = () => {
   const renderField = (field: DocField) => {
     const value = data[field.key] || '';
     const key = field.key;
+    const hasError = fieldErrors[key];
 
     const labelCls = "block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5";
-    const inputCls = "w-full border border-slate-300 bg-white rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all placeholder:text-slate-400";
+    const inputCls = `w-full border ${hasError ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-white'} rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all placeholder:text-slate-400`;
+
+    const onFieldChange = (k: string, v: string) => {
+      handleChange(k, v);
+      if (fieldErrors[k]) setFieldErrors(prev => ({ ...prev, [k]: false }));
+    };
 
     if (field.type === 'select' || key === 'ngan_hang') {
       const opts = key === 'ngan_hang' ? bankOptions : (field.options || []);
       return (
         <div key={key}>
-          <label className={labelCls}>{field.label}</label>
+          <label className={labelCls}>{field.label} <span className="text-red-400">*</span></label>
           <div className="relative">
-            <select value={value} onChange={(e) => handleChange(key, e.target.value)} className={`${inputCls} appearance-none pr-8`}>
+            <select value={value} onChange={(e) => onFieldChange(key, e.target.value)} className={`${inputCls} appearance-none pr-8`}>
               <option value="">{field.placeholder || `Chọn ${field.label}`}</option>
               {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
@@ -154,34 +188,41 @@ const GuestFormPage: React.FC = () => {
     if (field.type === 'date') {
       return (
         <div key={key}>
-          <label className={labelCls}>{field.label}</label>
-          <input type="date" value={value} onChange={(e) => handleChange(key, e.target.value)} className={inputCls} />
+          <label className={labelCls}>{field.label} <span className="text-red-400">*</span></label>
+          <input type="date" value={value} onChange={(e) => onFieldChange(key, e.target.value)} className={inputCls} />
         </div>
       );
     }
 
     return (
       <div key={key}>
-        <label className={labelCls}>{field.label}</label>
-        <input type="text" value={value} onChange={(e) => handleChange(key, e.target.value)} placeholder={field.placeholder} className={inputCls} />
+        <label className={labelCls}>{field.label} <span className="text-red-400">*</span></label>
+        <input type="text" value={value} onChange={(e) => onFieldChange(key, e.target.value)} placeholder={field.placeholder} className={inputCls} />
       </div>
     );
   };
 
   const renderImageUpload = (type: 'front' | 'back' | 'portrait', label: string, ref: React.RefObject<HTMLInputElement>) => {
     const preview = imagePreviews[type];
+    const hasError = imageErrors[type];
+
+    const onSelect = (file: File) => {
+      handleImageSelect(type, file);
+      if (imageErrors[type]) setImageErrors(prev => ({ ...prev, [type]: false }));
+    };
+
     return (
       <div className="text-center">
-        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">{label}</p>
-        <input ref={ref} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleImageSelect(type, e.target.files[0])} />
+        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">{label} <span className="text-red-400">*</span></p>
+        <input ref={ref} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && onSelect(e.target.files[0])} />
         <button type="button" onClick={() => ref.current?.click()}
-          className={`w-full aspect-[4/3] rounded-xl border-2 border-dashed flex flex-col items-center justify-center overflow-hidden transition-all ${preview ? 'border-green-300 bg-green-50' : 'border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-blue-400'}`}>
+          className={`w-full aspect-[4/3] rounded-xl border-2 border-dashed flex flex-col items-center justify-center overflow-hidden transition-all ${preview ? 'border-green-300 bg-green-50' : hasError ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-blue-400'}`}>
           {preview ? (
             <img src={preview} alt={label} className="w-full h-full object-contain" />
           ) : (
             <>
-              <ImageIcon className="w-8 h-8 text-slate-400 mb-1" />
-              <span className="text-xs text-slate-500">Chọn ảnh</span>
+              <ImageIcon className={`w-8 h-8 ${hasError ? 'text-red-400' : 'text-slate-400'} mb-1`} />
+              <span className={`text-xs ${hasError ? 'text-red-500' : 'text-slate-500'}`}>{hasError ? 'Bắt buộc' : 'Chọn ảnh'}</span>
             </>
           )}
         </button>
