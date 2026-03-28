@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { FileText, Upload, Loader2, CheckCircle, Image as ImageIcon, ChevronDown } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import { DEFAULT_FIELDS, DocField } from '../types';
+import { validateField } from '../utils/validation';
 
 // Compress image before upload
 const compressImage = (file: File, maxWidth = 600, quality = 0.6): Promise<Blob> => {
@@ -75,33 +76,41 @@ const GuestFormPage: React.FC = () => {
     setImagePreviews(prev => ({ ...prev, [type]: URL.createObjectURL(file) }));
   };
 
-  const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | undefined>>({});
   const [imageErrors, setImageErrors] = useState<{ front?: boolean; back?: boolean; portrait?: boolean }>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Validate all fields
-    const newFieldErrors: Record<string, boolean> = {};
-    let missingCount = 0;
+    const newFieldErrors: Record<string, string | undefined> = {};
+    let missingOrInvalidCount = 0;
+    
     profileFields.forEach(f => {
-      if (!data[f.key]?.trim()) {
-        newFieldErrors[f.key] = true;
-        missingCount++;
+      const val = data[f.key]?.trim() || '';
+      if (!val) {
+        newFieldErrors[f.key] = 'Bắt buộc';
+        missingOrInvalidCount++;
+      } else {
+        const validationMsg = validateField(f.key, val);
+        if (validationMsg) {
+          newFieldErrors[f.key] = validationMsg;
+          missingOrInvalidCount++;
+        }
       }
     });
 
     // Validate images
     const newImageErrors: { front?: boolean; back?: boolean; portrait?: boolean } = {};
-    if (!images.front) { newImageErrors.front = true; missingCount++; }
-    if (!images.back) { newImageErrors.back = true; missingCount++; }
-    if (!images.portrait) { newImageErrors.portrait = true; missingCount++; }
+    if (!images.front) { newImageErrors.front = true; missingOrInvalidCount++; }
+    if (!images.back) { newImageErrors.back = true; missingOrInvalidCount++; }
+    if (!images.portrait) { newImageErrors.portrait = true; missingOrInvalidCount++; }
 
     setFieldErrors(newFieldErrors);
     setImageErrors(newImageErrors);
 
-    if (missingCount > 0) {
-      setError(`Vui lòng điền đầy đủ tất cả thông tin (còn thiếu ${missingCount} mục).`);
+    if (missingOrInvalidCount > 0) {
+      setError(`Vui lòng kiểm tra lại thông tin (còn ${missingOrInvalidCount} mục trống hoặc không hợp lệ).`);
       // Scroll to first error
       const firstError = document.querySelector('.border-red-400');
       firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -159,15 +168,19 @@ const GuestFormPage: React.FC = () => {
   const renderField = (field: DocField) => {
     const value = data[field.key] || '';
     const key = field.key;
-    const hasError = fieldErrors[key];
+    const errorMsg = fieldErrors[key];
 
     const labelCls = "block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1.5";
-    const inputCls = `w-full border ${hasError ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-white'} rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all placeholder:text-slate-400`;
+    const inputCls = `w-full border ${errorMsg ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-white'} rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all placeholder:text-slate-400`;
 
     const onFieldChange = (k: string, v: string) => {
       handleChange(k, v);
-      if (fieldErrors[k]) setFieldErrors(prev => ({ ...prev, [k]: false }));
+      if (fieldErrors[k]) setFieldErrors(prev => ({ ...prev, [k]: undefined }));
     };
+
+    const renderError = () => errorMsg && (
+      <p className="text-[10px] text-red-500 mt-1 font-medium">{errorMsg}</p>
+    );
 
     if (field.type === 'select' || key === 'ngan_hang') {
       const opts = key === 'ngan_hang' ? bankOptions : (field.options || []);
@@ -181,6 +194,7 @@ const GuestFormPage: React.FC = () => {
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           </div>
+          {renderError()}
         </div>
       );
     }
@@ -190,6 +204,7 @@ const GuestFormPage: React.FC = () => {
         <div key={key}>
           <label className={labelCls}>{field.label} <span className="text-red-400">*</span></label>
           <input type="date" value={value} onChange={(e) => onFieldChange(key, e.target.value)} className={inputCls} />
+          {renderError()}
         </div>
       );
     }
@@ -198,6 +213,7 @@ const GuestFormPage: React.FC = () => {
       <div key={key}>
         <label className={labelCls}>{field.label} <span className="text-red-400">*</span></label>
         <input type="text" value={value} onChange={(e) => onFieldChange(key, e.target.value)} placeholder={field.placeholder} className={inputCls} />
+        {renderError()}
       </div>
     );
   };

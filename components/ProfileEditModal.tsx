@@ -104,12 +104,26 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
 
     const newErrors: Record<string, string> = {};
     let hasError = false;
-    Object.keys(finalData).forEach(key => {
-      if (key === 'ten_viet_tat') return;
-      const error = validateField(key, finalData[key]);
-      if (error) { newErrors[key] = error; hasError = true; }
+    
+    profileFields.forEach(f => {
+      const val = data[f.key]?.trim() || '';
+      if (!val) {
+        newErrors[f.key] = 'Bắt buộc';
+        hasError = true;
+      } else {
+        const error = validateField(f.key, val);
+        if (error) {
+          newErrors[f.key] = error;
+          hasError = true;
+        }
+      }
     });
-    if (hasError) { setErrors(newErrors); alert("Vui lòng sửa các lỗi nhập liệu trước khi lưu."); return; }
+
+    if (hasError) { 
+      setErrors(newErrors); 
+      alert("Vui lòng điền đầy đủ và đúng định dạng các thông tin bắt buộc."); 
+      return; 
+    }
 
     setIsSaving(true);
     try {
@@ -242,7 +256,7 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
                   {profileFields.map(field => (
                     <InputField
                       key={field.key}
-                      label={field.label}
+                      label={`${field.label} *`}
                       fieldKey={field.key}
                       value={data[field.key] || ''}
                       onChange={(key, val) => handleFieldChange(key, val)}
