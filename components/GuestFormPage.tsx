@@ -41,6 +41,9 @@ const GuestFormPage: React.FC = () => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
   const [banks, setBanks] = useState<{ shortName: string; name: string }[]>([]);
+  const [bankQuery, setBankQuery] = useState('');
+  const [isBankOpen, setIsBankOpen] = useState(false);
+  const bankRef = useRef<HTMLDivElement>(null);
 
   const frontRef = useRef<HTMLInputElement>(null);
   const backRef = useRef<HTMLInputElement>(null);
@@ -63,6 +66,28 @@ const GuestFormPage: React.FC = () => {
       .then(res => res.json())
       .then(d => { if (d?.data) setBanks(d.data.map((b: any) => ({ shortName: b.shortName, name: b.name }))); })
       .catch(console.error);
+  }, []);
+
+  // Sync bank search query with selection
+  useEffect(() => {
+    const selectedBank = data['ngan_hang'];
+    if (selectedBank) {
+      const match = banks.find(b => `${b.name} (${b.shortName})` === selectedBank);
+      if (match) setBankQuery(`${match.shortName} - ${match.name}`);
+    } else {
+      setBankQuery('');
+    }
+  }, [data['ngan_hang'], banks]);
+
+  // Click outside to close bank dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (bankRef.current && !bankRef.current.contains(event.target as Node)) {
+        setIsBankOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleChange = (key: string, value: string) => {
@@ -162,9 +187,6 @@ const GuestFormPage: React.FC = () => {
     }
   };
 
-  // Bank options  
-  const bankOptions = banks.map(b => ({ label: `${b.shortName} - ${b.name}`, value: `${b.name} (${b.shortName})` }));
-
   const renderField = (field: DocField) => {
     const value = data[field.key] || '';
     const key = field.key;
@@ -182,8 +204,65 @@ const GuestFormPage: React.FC = () => {
       <p className="text-[10px] text-red-500 mt-1 font-medium">{errorMsg}</p>
     );
 
-    if (field.type === 'select' || key === 'ngan_hang') {
-      const opts = key === 'ngan_hang' ? bankOptions : (field.options || []);
+    // Searchable Bank Selector
+    if (key === 'ngan_hang') {
+      const filteredBanks = banks.filter(b => 
+        b.shortName.toLowerCase().includes(bankQuery.toLowerCase()) || 
+        b.name.toLowerCase().includes(bankQuery.toLowerCase())
+      );
+
+      return (
+        <div key={key} ref={bankRef}>
+          <label className={labelCls}>{field.label} <span className="text-red-400">*</span></label>
+          <div className="relative">
+            <input
+              type="text"
+              value={bankQuery}
+              onChange={(e) => {
+                setBankQuery(e.target.value);
+                setIsBankOpen(true);
+                // We clear the selection if search is modified manually
+                if (data[key]) handleChange(key, ''); 
+              }}
+              onFocus={() => setIsBankOpen(true)}
+              placeholder={field.placeholder || 'Tìm kiếm ngân hàng...'}
+              className={`${inputCls} pr-8`}
+            />
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+              <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isBankOpen ? 'rotate-180' : ''}`} />
+            </div>
+
+            {isBankOpen && (
+              <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto animate-fadeIn">
+                {filteredBanks.length > 0 ? (
+                  filteredBanks.map(b => (
+                    <div
+                      key={b.shortName}
+                      className="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 text-slate-700 border-b border-slate-50 last:border-0"
+                      onClick={() => {
+                        const val = `${b.name} (${b.shortName})`;
+                        onFieldChange(key, val);
+                        setBankQuery(`${b.shortName} - ${b.name}`);
+                        setIsBankOpen(false);
+                      }}
+                    >
+                      <div className="font-semibold text-xs text-blue-700">{b.shortName}</div>
+                      <div className="text-[11px] text-slate-500 truncate">{b.name}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-3 py-3 text-sm text-slate-400 text-center">Không tìm thấy kết quả</div>
+                )}
+              </div>
+            )}
+          </div>
+          {renderError()}
+        </div>
+      );
+    }
+
+    if (field.type === 'select') {
+      const opts = field.options || [];
       return (
         <div key={key}>
           <label className={labelCls}>{field.label} <span className="text-red-400">*</span></label>

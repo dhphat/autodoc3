@@ -12,7 +12,7 @@ const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({ isOpen, imageUrl,
   if (!isOpen || !imageUrl) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn" onClick={onClose}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn" onClick={onClose}>
       <div className="relative max-w-4xl max-h-[90vh] w-full" onClick={(e) => e.stopPropagation()}>
         <div className="bg-white rounded-xl shadow-2xl overflow-hidden">
           <div className="p-3 border-b border-slate-100 flex items-center justify-between bg-slate-50">
