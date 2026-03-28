@@ -63,26 +63,31 @@ export const generateDocument = ({ file, data, fileName, images }: GenerateOptio
         }
 
         const zip = new PizZip(content as ArrayBuffer);
-
+        
         // Setup options
         const options: any = {
           paragraphLoop: true,
           linebreaks: true,
+          nullGetter: () => "", // Return blank if tag is missing or null, avoiding "undefined" text
         };
 
-        // Configure Image Module if images are provided and the module exists
-        if (images && window.ImageModule) {
+        // Configure Image Module if images are provided
+        // Try multiple common names for the global ImageModule if ImageModule is not directly on window
+        const ImageModule = window.ImageModule || (window as any).docxtemplaterImageModule;
+
+        if (images && ImageModule) {
           const imageOpts = {
             centered: false,
             getImage: (tag: string, tagName: string) => {
-              if (images[tagName]) {
-                return images[tagName];
-              }
-              return null;
+              // tagName is the variable inside {%tag_name}
+              return images[tagName] || null;
             },
-            getSize: () => [500, 300],
+            getSize: (img: ArrayBuffer, tag: string, tagName: string) => {
+              // Standard size fallback, can be adjusted in the template as well
+              return [240, 160]; 
+            },
           };
-          options.modules = [new window.ImageModule(imageOpts)];
+          options.modules = [new ImageModule(imageOpts)];
         }
 
         const doc = new Docxtemplater(zip, options);

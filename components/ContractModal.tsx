@@ -145,22 +145,35 @@ const ContractModal: React.FC<ContractModalProps> = ({
     try {
       const profile = profiles.find(p => p.id === form.profile_id);
       const profileData = profile?.data || contract?.profile_data || {};
-      const data: Record<string, string> = { ...profileData, ...form };
+      
+      // Clean data: remove undefined/null values that could cause "undefined" text
+      const rawData: Record<string, string> = { ...profileData, ...form };
+      const cleanData: Record<string, string> = {};
+      Object.keys(rawData).forEach(k => {
+        if (rawData[k] !== undefined && rawData[k] !== null) {
+          cleanData[k] = String(rawData[k]);
+        }
+      });
 
       const images: Record<string, ArrayBuffer | null> = {};
-      if (profile?.id_card_front_url) {
-        try { const r = await fetch(profile.id_card_front_url); images['cccd_truoc'] = await r.arrayBuffer(); } catch {}
-      }
-      if (profile?.id_card_back_url) {
-        try { const r = await fetch(profile.id_card_back_url); images['cccd_sau'] = await r.arrayBuffer(); } catch {}
-      }
-      if (profile?.id_card_portrait_url) {
-        try { const r = await fetch(profile.id_card_portrait_url); images['vneid'] = await r.arrayBuffer(); } catch {}
-      }
+      const downloadImg = async (url: string, key: string) => {
+        try { 
+          const r = await fetch(url); 
+          if (!r.ok) throw new Error(`HTTP error ${r.status}`);
+          images[key] = await r.arrayBuffer(); 
+        } catch (e) {
+          console.warn(`Failed to download image for ${key}:`, e);
+          images[key] = null;
+        }
+      };
+
+      if (profile?.id_card_front_url) await downloadImg(profile.id_card_front_url, 'cccd_truoc');
+      if (profile?.id_card_back_url) await downloadImg(profile.id_card_back_url, 'cccd_sau');
+      if (profile?.id_card_portrait_url) await downloadImg(profile.id_card_portrait_url, 'vneid');
 
       const name = profile?.name || contract?.profile_name || 'Moi';
       const fileName = type === 'contract' ? `HopDong_${name}.docx` : `NghiemThu_${name}.docx`;
-      await generateDocument({ file: template, data, fileName, images });
+      await generateDocument({ file: template, data: cleanData, fileName, images });
     } catch (err: any) {
       console.error('Download error:', err);
       alert(`Lỗi tải ${type === 'contract' ? 'hợp đồng' : 'nghiệm thu'}: ${err.message || err}`);
