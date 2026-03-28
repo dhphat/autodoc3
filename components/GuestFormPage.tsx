@@ -302,10 +302,18 @@ const GuestFormPage: React.FC = () => {
         <div key={key}>
           <label className={labelCls}>{field.label} <span className="text-red-400">*</span></label>
           <input 
-            type="date" 
+            type="text" 
+            inputMode="numeric"
             value={value} 
-            onChange={(e) => onFieldChange(key, e.target.value)} 
+            onChange={(e) => {
+              let val = e.target.value.replace(/[^\d]/g, '');
+              if (val.length > 2 && val.length <= 4) val = val.slice(0, 2) + '/' + val.slice(2);
+              else if (val.length > 4) val = val.slice(0, 2) + '/' + val.slice(2, 4) + '/' + val.slice(4, 8);
+              onFieldChange(key, val);
+            }} 
             onBlur={() => onFieldBlur(key)}
+            placeholder="DD/MM/YYYY" 
+            maxLength={10}
             className={inputCls} 
           />
           {renderError()}
@@ -340,7 +348,7 @@ const GuestFormPage: React.FC = () => {
 
     return (
       <div className="text-center">
-        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">{label} <span className="text-red-400">*</span></p>
+        <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-2">{label} <span className="text-red-400">*</span></p>
         <input ref={ref} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && onSelect(e.target.files[0])} />
         <button type="button" onClick={() => ref.current?.click()}
           className={`w-full aspect-[4/3] rounded-xl border-2 border-dashed flex flex-col items-center justify-center overflow-hidden transition-all ${preview ? 'border-green-300 bg-green-50' : hasError ? 'border-red-400 bg-red-50' : 'border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-blue-400'}`}>
@@ -390,8 +398,8 @@ const GuestFormPage: React.FC = () => {
         <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
           {/* Form Header */}
           <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-6 text-white">
-            <h2 className="text-xl font-bold">Đăng Ký Thông Tin Cá Nhân</h2>
-            <p className="text-blue-200 text-sm mt-1">Vui lòng điền đầy đủ thông tin bên dưới</p>
+            <h2 className="text-xl font-bold">Nhập thông tin cá nhân</h2>
+            <p className="text-blue-200 text-sm mt-1">Để phục vụ quá trình lập hồ sơ thanh toán, vui lòng điền đầy đủ thông tin bên dưới</p>
           </div>
 
           <form onSubmit={handleSubmit} className="p-8 space-y-6">
