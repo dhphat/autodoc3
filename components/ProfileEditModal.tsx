@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { X, Save, User, UserPlus, Image as ImageIcon, Loader2, Upload, Eye, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Save, User, UserPlus, Image as ImageIcon, Loader2, Upload, Eye, Trash2, ChevronDown } from 'lucide-react';
 import { SavedProfile, DocField } from '../types';
 import { validateField } from '../utils/validation';
 import { uploadImage, saveProfile } from '../services/supabaseService';
@@ -24,6 +24,10 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
 }) => {
   const [data, setData] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [banks, setBanks] = useState<{ shortName: string; name: string }[]>([]);
+  const [bankQuery, setBankQuery] = useState('');
+  const [isBankOpen, setIsBankOpen] = useState(false);
+  const bankRef = useRef<HTMLDivElement>(null);
   const [imgFrontUrl, setImgFrontUrl] = useState<string | null>(null);
   const [imgBackUrl, setImgBackUrl] = useState<string | null>(null);
   const [imgPortraitUrl, setImgPortraitUrl] = useState<string | null>(null);
@@ -57,14 +61,53 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
     }
   }, [isOpen, profile, fieldDefinitions]);
 
+  // Load banks
+  useEffect(() => {
+    fetch('https://api.vietqr.io/v2/banks')
+      .then(res => res.json())
+      .then(d => { if (d?.data) setBanks(d.data.map((b: any) => ({ shortName: b.shortName, name: b.name }))); })
+      .catch(console.error);
+  }, []);
+
+  // Sync bank search query with selection
+  useEffect(() => {
+    const selectedBank = data['ngan_hang'];
+    if (selectedBank) {
+      const match = banks.find(b => `${b.name} (${b.shortName})` === selectedBank);
+      if (match) setBankQuery(`${match.shortName} - ${match.name}`);
+    } else {
+      setBankQuery('');
+    }
+  }, [data['ngan_hang'], banks]);
+
+  // Click outside to close bank dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (bankRef.current && !bankRef.current.contains(event.target as Node)) {
+        setIsBankOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   if (!isOpen) return null;
 
   const handleFieldChange = (key: string, value: string) => {
     let finalValue = value;
     if (key === 'ho_ten') finalValue = value.toUpperCase();
     setData(prev => ({ ...prev, [key]: finalValue }));
-    const error = validateField(key, finalValue);
-    setErrors(prev => ({ ...prev, [key]: error || '' }));
+    if (errors[key]) setErrors(prev => ({ ...prev, [key]: '' }));
+  };
+
+  const onFieldBlur = (key: string) => {
+    const val = (data[key] || '').trim();
+    if (!val) {
+      setErrors(prev => ({ ...prev, [key]: 'Bắt buộc' }));
+    } else {
+      const msg = validateField(key, val);
+      setErrors(prev => ({ ...prev, [key]: msg || '' }));
+    }
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'front' | 'back' | 'portrait') => {
@@ -197,38 +240,117 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
     const isUploading = uploadingType === type;
 
     return (
-      <div className="space-y-2">
-        <label className="text-xs font-medium text-slate-500 uppercase flex justify-between items-center">
-          {label}
+      <div className="flex flex-col h-full">
+        <label className="text-[10px] font-bold text-slate-500 uppercase flex justify-between items-center mb-1.5 px-0.5">
+          {label} <span className="text-red-400">*</span>
           <div className="flex items-center gap-2">
             {url && (
               <button type="button" onClick={() => setPreviewImage({ url, title: `${data['ho_ten'] || 'Hồ sơ'} - ${label}` })}
-                className="text-blue-600 hover:text-blue-800 text-[10px] normal-case flex items-center gap-0.5">
-                <Eye className="w-3 h-3" /> Xem
+                className="text-blue-600 hover:text-blue-800 text-[9px] normal-case flex items-center gap-0.5">
+                <Eye className="w-2.5 h-2.5" /> Xem
               </button>
             )}
             <input type="file" className="hidden" id={inputId} accept="image/*" onChange={(e) => handleImageUpload(e, type)} disabled={isSaving || isUploading} />
-            <label htmlFor={inputId} className={`text-blue-600 cursor-pointer hover:underline text-[10px] normal-case flex items-center gap-0.5 ${(isSaving || isUploading) ? 'pointer-events-none opacity-50' : ''}`}>
-              <Upload className="w-3 h-3" /> {url ? 'Thay đổi' : 'Tải lên'}
+            <label htmlFor={inputId} className={`text-blue-600 cursor-pointer hover:underline text-[9px] normal-case flex items-center gap-0.5 ${(isSaving || isUploading) ? 'pointer-events-none opacity-50' : ''}`}>
+              <Upload className="w-2.5 h-2.5" /> {url ? 'Thay đổi' : 'Tải lên'}
             </label>
           </div>
         </label>
-        <div className="h-36 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center overflow-hidden relative">
+        <div className={`aspect-[4/3] bg-slate-100 border-2 border-dashed rounded-xl flex items-center justify-center overflow-hidden relative transition-all ${url ? 'border-blue-100 bg-white' : 'border-slate-200'}`}>
           {isUploading && (
             <div className="absolute inset-0 bg-white/70 flex items-center justify-center z-10">
-              <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+              <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
             </div>
           )}
           {url ? (
             <img src={url} alt={label} className="h-full w-full object-contain" />
           ) : (
             <div className="text-slate-400 flex flex-col items-center">
-              <ImageIcon className="w-8 h-8 mb-1" />
-              <span className="text-xs">Chưa có ảnh</span>
+              <ImageIcon className="w-6 h-6 mb-1 opacity-50" />
+              <span className="text-[10px]">Chưa có ảnh</span>
             </div>
           )}
         </div>
       </div>
+    );
+  };
+
+  const renderField = (field: DocField) => {
+    // Special handling for Bank selection to allow search
+    if (field.key === 'ngan_hang') {
+      const filteredBanks = banks.filter(b => 
+        b.shortName.toLowerCase().includes(bankQuery.toLowerCase()) || 
+        b.name.toLowerCase().includes(bankQuery.toLowerCase())
+      );
+      const errorMsg = errors[field.key];
+
+      return (
+        <div key={field.key} className="flex flex-col gap-1.5" ref={bankRef}>
+          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            {field.label} <span className="text-red-400">*</span> <span className="text-slate-400 font-normal normal-case opacity-70">{"{"}{field.key}{"}"}</span>
+          </label>
+          <div className="relative">
+            <input
+              type="text"
+              value={bankQuery}
+              onChange={(e) => {
+                setBankQuery(e.target.value);
+                setIsBankOpen(true);
+                if (data[field.key]) handleFieldChange(field.key, '');
+              }}
+              onFocus={() => setIsBankOpen(true)}
+              onBlur={() => {
+                setTimeout(() => onFieldBlur(field.key), 200);
+              }}
+              placeholder={field.placeholder || "Tìm kiếm ngân hàng..."}
+              className={`w-full border ${errorMsg ? 'border-red-500 bg-red-50' : 'border-slate-300 bg-slate-50'} rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all pr-8`}
+            />
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+              <ChevronDown className={`w-4 h-4 transition-transform ${isBankOpen ? 'rotate-180' : ''}`} />
+            </div>
+            {isBankOpen && (
+              <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto animate-fadeIn">
+                {filteredBanks.length > 0 ? (
+                  filteredBanks.map(b => (
+                    <div
+                      key={b.shortName}
+                      className="px-3 py-2 text-xs cursor-pointer hover:bg-blue-50 text-slate-700 border-b border-slate-50 last:border-0"
+                      onClick={() => {
+                        const val = `${b.name} (${b.shortName})`;
+                        handleFieldChange(field.key, val);
+                        setBankQuery(`${b.shortName} - ${b.name}`);
+                        setIsBankOpen(false);
+                      }}
+                    >
+                      <div className="font-bold text-blue-700">{b.shortName}</div>
+                      <div className="text-[10px] text-slate-500 truncate">{b.name}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-3 py-2 text-xs text-slate-400 italic">Không tìm thấy</div>
+                )}
+              </div>
+            )}
+          </div>
+          {errorMsg && <span className="text-xs text-red-500 italic animate-fadeIn">{errorMsg}</span>}
+        </div>
+      );
+    }
+
+    return (
+      <InputField
+        key={field.key}
+        label={field.label}
+        fieldKey={field.key}
+        value={data[field.key] || ''}
+        onChange={handleFieldChange}
+        onBlur={onFieldBlur}
+        placeholder={field.placeholder}
+        type={field.type}
+        options={field.options}
+        error={errors[field.key]}
+        required={true}
+      />
     );
   };
 
@@ -248,34 +370,24 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
             </button>
           </div>
           
-          <div className="p-6 overflow-y-auto space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-4">
-                <h4 className="text-sm font-bold text-slate-900 border-b pb-2">Thông tin cá nhân</h4>
-                <div className="space-y-4">
-                  {profileFields.map(field => (
-                    <InputField
-                      key={field.key}
-                      label={`${field.label} *`}
-                      fieldKey={field.key}
-                      value={data[field.key] || ''}
-                      onChange={(key, val) => handleFieldChange(key, val)}
-                      placeholder={field.placeholder}
-                      type={field.type}
-                      options={field.options}
-                      error={errors[field.key]}
-                    />
-                  ))}
-                </div>
+          <div className="p-6 overflow-y-auto space-y-8 flex-1">
+            <div className="space-y-6">
+              <h4 className="text-sm font-bold text-slate-900 border-b pb-2 flex items-center gap-2">
+                <User className="w-4 h-4 text-blue-600" /> Thông tin cá nhân
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+                {profileFields.map(field => renderField(field))}
               </div>
+            </div>
 
-              <div className="space-y-4">
-                <h4 className="text-sm font-bold text-slate-900 border-b pb-2">Ảnh CCCD & VNeID</h4>
-                <div className="space-y-4">
-                  {renderImageSlot('front', 'Mặt Trước', imgFrontUrl)}
-                  {renderImageSlot('back', 'Mặt Sau', imgBackUrl)}
-                  {renderImageSlot('portrait', 'Ảnh VNeID', imgPortraitUrl)}
-                </div>
+            <div className="space-y-4">
+              <h4 className="text-sm font-bold text-slate-900 border-b pb-2 flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-blue-600" /> Ảnh Căn cước công dân (CCCD) & VNeID
+              </h4>
+              <div className="grid grid-cols-3 gap-6">
+                {renderImageSlot('front', 'Mặt Trước', imgFrontUrl)}
+                {renderImageSlot('back', 'Mặt Sau', imgBackUrl)}
+                {renderImageSlot('portrait', 'Ảnh VNeID', imgPortraitUrl)}
               </div>
             </div>
           </div>

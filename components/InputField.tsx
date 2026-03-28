@@ -7,11 +7,13 @@ interface InputFieldProps {
   fieldKey: string;
   value: string;
   onChange: (key: string, val: string) => void;
+  onBlur?: (key: string) => void;
   placeholder?: string;
   className?: string;
   type?: 'text' | 'number' | 'select' | 'date' | 'textarea';
   options?: { label: string; value: string }[];
   error?: string;
+  required?: boolean;
 }
 
 const InputField: React.FC<InputFieldProps> = ({ 
@@ -23,7 +25,9 @@ const InputField: React.FC<InputFieldProps> = ({
   className,
   type = 'text',
   options,
-  error
+  error,
+  onBlur,
+  required
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -94,6 +98,7 @@ const InputField: React.FC<InputFieldProps> = ({
                             onChange(fieldKey, e.target.value);
                         }}
                         onFocus={() => setIsOpen(true)}
+                        onBlur={() => onBlur?.(fieldKey)}
                         placeholder={placeholder || 'Chọn hoặc tìm kiếm...'}
                         className={`${inputClass} pr-8`}
                     />
@@ -134,6 +139,7 @@ const InputField: React.FC<InputFieldProps> = ({
                 type="date"
                 value={getDateValue()}
                 onChange={handleDateChange}
+                onBlur={() => onBlur?.(fieldKey)}
                 className={inputClass}
             />
         );
@@ -145,6 +151,7 @@ const InputField: React.FC<InputFieldProps> = ({
                 id={fieldKey}
                 value={value}
                 onChange={(e) => onChange(fieldKey, e.target.value)}
+                onBlur={() => onBlur?.(fieldKey)}
                 placeholder={placeholder}
                 rows={4}
                 className={`${inputClass} resize-y min-h-[100px]`}
@@ -159,6 +166,7 @@ const InputField: React.FC<InputFieldProps> = ({
             inputMode={type === 'number' ? 'numeric' : 'text'}
             value={value}
             onChange={(e) => onChange(fieldKey, e.target.value)}
+            onBlur={() => onBlur?.(fieldKey)}
             placeholder={placeholder}
             className={inputClass}
         />
@@ -168,12 +176,12 @@ const InputField: React.FC<InputFieldProps> = ({
   return (
     <div className={`flex flex-col gap-1.5 ${type === 'textarea' ? 'md:col-span-2' : ''} ${className || ''}`}>
       <label htmlFor={fieldKey} className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-        {label} <span className="text-slate-400 font-normal normal-case opacity-70">{'{'}{fieldKey}{'}'}</span>
+        {label} {required && <span className="text-red-400">*</span>} <span className="text-slate-400 font-normal normal-case opacity-70">{"{"}{fieldKey}{"}"}</span>
       </label>
       
       {renderInput()}
       
-      {error && <span className="text-xs text-red-500 mt-0.5">{error}</span>}
+      {error && <span className="text-xs text-red-500 mt-0.5 italic animate-fadeIn">{error}</span>}
     </div>
   );
 };
