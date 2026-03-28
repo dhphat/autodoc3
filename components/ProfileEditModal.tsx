@@ -101,13 +101,20 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
   };
 
   const onFieldBlur = (key: string) => {
-    const val = (data[key] || '').trim();
-    if (!val) {
-      setErrors(prev => ({ ...prev, [key]: 'Bắt buộc' }));
-    } else {
-      const msg = validateField(key, val);
-      setErrors(prev => ({ ...prev, [key]: msg || '' }));
-    }
+    // We use a small delay for bank to allow the clicked selection to update state first
+    const delay = key === 'ngan_hang' ? 300 : 0;
+    setTimeout(() => {
+      setData(latestData => {
+        const val = (latestData[key] || '').trim();
+        if (!val) {
+          setErrors(prev => ({ ...prev, [key]: 'Bắt buộc' }));
+        } else {
+          const msg = validateField(key, val);
+          setErrors(prev => ({ ...prev, [key]: msg || '' }));
+        }
+        return latestData;
+      });
+    }, delay);
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'front' | 'back' | 'portrait') => {
@@ -213,7 +220,8 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
         onClose();
       }
     } catch (error: any) {
-      alert('Lỗi: ' + (error.message || error));
+      console.error('Save profile error:', error);
+      alert('Không thể lưu hồ sơ. Lỗi: ' + (error.message || error));
     } finally {
       setIsSaving(false);
     }
@@ -299,9 +307,7 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
                 if (data[field.key]) handleFieldChange(field.key, '');
               }}
               onFocus={() => setIsBankOpen(true)}
-              onBlur={() => {
-                setTimeout(() => onFieldBlur(field.key), 200);
-              }}
+              onBlur={() => onFieldBlur(field.key)}
               placeholder={field.placeholder || "Tìm kiếm ngân hàng..."}
               className={`w-full border ${errorMsg ? 'border-red-500 bg-red-50' : 'border-slate-300 bg-slate-50'} rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all pr-8`}
             />
