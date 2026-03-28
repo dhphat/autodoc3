@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, Search } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 
 interface InputFieldProps {
   label: string;
@@ -9,7 +9,7 @@ interface InputFieldProps {
   onChange: (key: string, val: string) => void;
   placeholder?: string;
   className?: string;
-  type?: 'text' | 'number' | 'select' | 'date';
+  type?: 'text' | 'number' | 'select' | 'date' | 'textarea';
   options?: { label: string; value: string }[];
   error?: string;
 }
@@ -33,7 +33,6 @@ const InputField: React.FC<InputFieldProps> = ({
   useEffect(() => {
     if (type === 'select') {
         const selectedOption = options?.find(opt => opt.value === value);
-        // If there's a selected option, show its label. Otherwise show the raw value (if typed) or empty.
         if (selectedOption) {
             setQuery(selectedOption.label);
         } else {
@@ -92,9 +91,6 @@ const InputField: React.FC<InputFieldProps> = ({
                         onChange={(e) => {
                             setQuery(e.target.value);
                             setIsOpen(true);
-                            // Allow free typing, but usually for ID/Codes we might want strict.
-                            // Here we pass the typed value to parent immediately.
-                            // If user types "VCB", value becomes "VCB".
                             onChange(fieldKey, e.target.value);
                         }}
                         onFocus={() => setIsOpen(true)}
@@ -107,7 +103,7 @@ const InputField: React.FC<InputFieldProps> = ({
                 </div>
 
                 {isOpen && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto animate-in fade-in duration-100">
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto animate-fadeIn">
                         {filteredOptions.length > 0 ? (
                             filteredOptions.map((opt) => (
                                 <div
@@ -143,6 +139,19 @@ const InputField: React.FC<InputFieldProps> = ({
         );
     }
 
+    if (type === 'textarea') {
+        return (
+            <textarea
+                id={fieldKey}
+                value={value}
+                onChange={(e) => onChange(fieldKey, e.target.value)}
+                placeholder={placeholder}
+                rows={4}
+                className={`${inputClass} resize-y min-h-[100px]`}
+            />
+        );
+    }
+
     return (
         <input
             id={fieldKey}
@@ -157,7 +166,7 @@ const InputField: React.FC<InputFieldProps> = ({
   };
 
   return (
-    <div className={`flex flex-col gap-1.5 ${className}`}>
+    <div className={`flex flex-col gap-1.5 ${type === 'textarea' ? 'md:col-span-2' : ''} ${className || ''}`}>
       <label htmlFor={fieldKey} className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
         {label} <span className="text-slate-400 font-normal normal-case opacity-70">{'{'}{fieldKey}{'}'}</span>
       </label>
