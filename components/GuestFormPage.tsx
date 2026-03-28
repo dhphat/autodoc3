@@ -53,11 +53,14 @@ const GuestFormPage: React.FC = () => {
   const profileFields = DEFAULT_FIELDS
     .filter(f => f.section === 'Party B' && f.key !== 'ten_viet_tat');
 
+  const dataRef = useRef<Record<string, string>>({});
+
   // Init empty data
   useEffect(() => {
     const empty: Record<string, string> = {};
     profileFields.forEach(f => { empty[f.key] = f.value || ''; });
     setData(empty);
+    dataRef.current = empty;
   }, []);
 
   // Load banks
@@ -93,7 +96,11 @@ const GuestFormPage: React.FC = () => {
   const handleChange = (key: string, value: string) => {
     let v = value;
     if (key === 'ho_ten') v = value.toUpperCase();
-    setData(prev => ({ ...prev, [key]: v }));
+    setData(prev => {
+      const next = { ...prev, [key]: v };
+      dataRef.current = next;
+      return next;
+    });
   };
 
   const handleImageSelect = (type: 'front' | 'back' | 'portrait', file: File) => {
@@ -201,7 +208,7 @@ const GuestFormPage: React.FC = () => {
     };
 
     const onFieldBlur = (k: string) => {
-      const val = (data[k] || '').trim();
+      const val = (dataRef.current[k] || '').trim();
       if (!val) {
         setFieldErrors(prev => ({ ...prev, [k]: 'Bắt buộc' }));
       } else {
