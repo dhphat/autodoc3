@@ -34,9 +34,7 @@ const LoginPage: React.FC = () => {
       <div className="relative w-full max-w-md animate-slideUp">
         <div className="bg-white/5 backdrop-blur-2xl border border-white/10 rounded-2xl p-8 shadow-2xl">
           <div className="text-center mb-8">
-            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-3.5 rounded-xl inline-flex mb-4 shadow-lg shadow-blue-500/25">
-              <FileText className="w-8 h-8 text-white" />
-            </div>
+            <img src="/favicon.png" alt="FES Contract Logo" className="w-16 h-16 rounded-2xl mx-auto mb-4 shadow-lg shadow-blue-500/25 object-cover" />
             <h1 className="text-2xl font-bold text-white tracking-tight">FES Contract</h1>
             <p className="text-blue-300/50 text-sm mt-1">Hệ thống quản lý hợp đồng</p>
           </div>

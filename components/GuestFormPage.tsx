@@ -380,7 +380,7 @@ const GuestFormPage: React.FC = () => {
       {/* Header */}
       <div className="bg-white/80 backdrop-blur border-b border-slate-200 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-2.5">
-          <div className="bg-blue-600 p-1.5 rounded-lg"><FileText className="w-4 h-4 text-white" /></div>
+          <img src="/favicon.png" alt="FES Contract" className="w-8 h-8 rounded-lg" />
           <h1 className="text-lg font-bold text-slate-800">FES Contract</h1>
         </div>
       </div>
