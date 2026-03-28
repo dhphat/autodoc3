@@ -69,6 +69,108 @@ function createImageModule({ images, defaultSize = [450, 300] }: ImageModuleOpti
   }
 
   /**
+   * Read actual image dimensions (width × height) from binary data.
+   * Supports PNG, JPEG, GIF, and WEBP.
+   * Returns null if dimensions cannot be determined.
+   */
+  function getImageDimensions(buffer: ArrayBuffer): { w: number; h: number } | null {
+    const view = new DataView(buffer);
+    const u8 = new Uint8Array(buffer);
+
+    // --- PNG: width & height at bytes 16-23 in IHDR ---
+    if (u8[0] === 0x89 && u8[1] === 0x50 && u8[2] === 0x4e && u8[3] === 0x47) {
+      if (buffer.byteLength >= 24) {
+        return { w: view.getUint32(16), h: view.getUint32(20) };
+      }
+    }
+
+    // --- JPEG: scan for SOF0/SOF2 markers (0xFFC0 / 0xFFC2) ---
+    if (u8[0] === 0xff && u8[1] === 0xd8) {
+      let offset = 2;
+      while (offset < buffer.byteLength - 10) {
+        if (u8[offset] !== 0xff) { offset++; continue; }
+        const marker = u8[offset + 1];
+        // SOF0 (0xC0) or SOF2 (0xC2) — baseline / progressive
+        if (marker === 0xc0 || marker === 0xc2) {
+          const h = view.getUint16(offset + 5);
+          const w = view.getUint16(offset + 7);
+          return { w, h };
+        }
+        // Skip to next marker
+        if (marker === 0xd9) break; // EOI
+        const segLen = view.getUint16(offset + 2);
+        offset += 2 + segLen;
+      }
+    }
+
+    // --- GIF: width & height at bytes 6-9 (little-endian) ---
+    if (u8[0] === 0x47 && u8[1] === 0x49 && u8[2] === 0x46) {
+      if (buffer.byteLength >= 10) {
+        return { w: view.getUint16(6, true), h: view.getUint16(8, true) };
+      }
+    }
+
+    // --- WEBP ---
+    if (u8[0] === 0x52 && u8[1] === 0x49 && u8[8] === 0x57 && u8[9] === 0x45) {
+      // VP8 (lossy): width/height at offset 26-29
+      if (u8[12] === 0x56 && u8[13] === 0x50 && u8[14] === 0x38 && u8[15] === 0x20) {
+        if (buffer.byteLength >= 30) {
+          return {
+            w: view.getUint16(26, true) & 0x3fff,
+            h: view.getUint16(28, true) & 0x3fff,
+          };
+        }
+      }
+      // VP8L (lossless): bits 21-34 contain w-1, bits 35-48 contain h-1
+      if (u8[12] === 0x56 && u8[13] === 0x50 && u8[14] === 0x38 && u8[15] === 0x4c) {
+        if (buffer.byteLength >= 25) {
+          const bits = view.getUint32(21, true);
+          return {
+            w: (bits & 0x3fff) + 1,
+            h: ((bits >> 14) & 0x3fff) + 1,
+          };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Calculate display size that fits within maxWidth while preserving aspect ratio.
+   * Returns [width, height] in pixels.
+   */
+  function calculateFitSize(
+    imgData: ArrayBuffer,
+    maxWidth: number,
+  ): [number, number] {
+    const dims = getImageDimensions(imgData);
+    if (!dims || dims.w <= 0 || dims.h <= 0) {
+      // Fallback: use default size if we can't read dimensions
+      return defaultSize;
+    }
+
+    const { w, h } = dims;
+    const aspectRatio = w / h;
+
+    let displayW: number;
+    let displayH: number;
+
+    if (w > maxWidth) {
+      // Scale down to fit maxWidth
+      displayW = maxWidth;
+      displayH = Math.round(maxWidth / aspectRatio);
+    } else {
+      // Image is smaller than maxWidth, use actual size
+      displayW = w;
+      displayH = h;
+    }
+
+    console.log(`[ImageModule] Dimensions: ${w}×${h} → display: ${displayW}×${displayH}`);
+    return [displayW, displayH];
+  }
+
+  /**
    * Add image file to the zip and create a relationship entry.
    * Returns the numeric rId for embedding in the document XML.
    */
@@ -283,7 +385,9 @@ function createImageModule({ images, defaultSize = [450, 300] }: ImageModuleOpti
 
       try {
         const rId = addImageToZip(imgData, options.filePath);
-        const xml = buildImageXml(rId, defaultSize);
+        // Calculate size preserving aspect ratio, fitting within maxWidth
+        const fitSize = calculateFitSize(imgData, defaultSize[0]);
+        const xml = buildImageXml(rId, fitSize);
         console.log(`[ImageModule] Rendered image for "{%${tagName}}" → rId${rId}`);
         return { value: xml };
       } catch (err) {
