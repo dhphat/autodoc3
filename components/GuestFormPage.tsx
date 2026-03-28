@@ -200,8 +200,18 @@ const GuestFormPage: React.FC = () => {
       if (fieldErrors[k]) setFieldErrors(prev => ({ ...prev, [k]: undefined }));
     };
 
+    const onFieldBlur = (k: string) => {
+      const val = (data[k] || '').trim();
+      if (!val) {
+        setFieldErrors(prev => ({ ...prev, [k]: 'Bắt buộc' }));
+      } else {
+        const msg = validateField(k, val);
+        setFieldErrors(prev => ({ ...prev, [k]: msg }));
+      }
+    };
+
     const renderError = () => errorMsg && (
-      <p className="text-[10px] text-red-500 mt-1 font-medium">{errorMsg}</p>
+      <p className="text-[10px] text-red-500 mt-1 font-medium italic animate-fadeIn">{errorMsg}</p>
     );
 
     // Searchable Bank Selector
@@ -225,6 +235,10 @@ const GuestFormPage: React.FC = () => {
                 if (data[key]) handleChange(key, ''); 
               }}
               onFocus={() => setIsBankOpen(true)}
+              onBlur={() => {
+                // Delayed validation to allow for list item selection
+                setTimeout(() => onFieldBlur(key), 200);
+              }}
               placeholder={field.placeholder || 'Tìm kiếm ngân hàng...'}
               className={`${inputCls} pr-8`}
             />
@@ -267,7 +281,12 @@ const GuestFormPage: React.FC = () => {
         <div key={key}>
           <label className={labelCls}>{field.label} <span className="text-red-400">*</span></label>
           <div className="relative">
-            <select value={value} onChange={(e) => onFieldChange(key, e.target.value)} className={`${inputCls} appearance-none pr-8`}>
+            <select 
+              value={value} 
+              onChange={(e) => onFieldChange(key, e.target.value)} 
+              onBlur={() => onFieldBlur(key)}
+              className={`${inputCls} appearance-none pr-8`}
+            >
               <option value="">{field.placeholder || `Chọn ${field.label}`}</option>
               {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
@@ -282,7 +301,13 @@ const GuestFormPage: React.FC = () => {
       return (
         <div key={key}>
           <label className={labelCls}>{field.label} <span className="text-red-400">*</span></label>
-          <input type="date" value={value} onChange={(e) => onFieldChange(key, e.target.value)} className={inputCls} />
+          <input 
+            type="date" 
+            value={value} 
+            onChange={(e) => onFieldChange(key, e.target.value)} 
+            onBlur={() => onFieldBlur(key)}
+            className={inputCls} 
+          />
           {renderError()}
         </div>
       );
@@ -291,7 +316,14 @@ const GuestFormPage: React.FC = () => {
     return (
       <div key={key}>
         <label className={labelCls}>{field.label} <span className="text-red-400">*</span></label>
-        <input type="text" value={value} onChange={(e) => onFieldChange(key, e.target.value)} placeholder={field.placeholder} className={inputCls} />
+        <input 
+          type="text" 
+          value={value} 
+          onChange={(e) => onFieldChange(key, e.target.value)} 
+          onBlur={() => onFieldBlur(key)}
+          placeholder={field.placeholder} 
+          className={inputCls} 
+        />
         {renderError()}
       </div>
     );
