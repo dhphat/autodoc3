@@ -120,11 +120,12 @@ export const updateProfile = async (profile: SavedProfile): Promise<void> => {
 };
 
 export const deleteProfile = async (id: string): Promise<void> => {
-  const { error } = await supabase
+  const { error, count } = await supabase
     .from('profiles')
-    .delete()
+    .delete({ count: 'exact' })
     .eq('id', id);
   if (error) throw error;
+  if (count === 0) throw new Error('Không thể xóa hồ sơ. Có thể bạn không có quyền xóa hồ sơ này.');
 };
 
 // ======================== CONTRACTS ========================
