@@ -84,6 +84,7 @@ export const DEFAULT_FIELDS: DocField[] = [
   { key: 'email', label: 'Email', value: '', section: 'Party B', placeholder: 'Email' },
   { key: 'mst', label: 'MST', value: '', section: 'Party B', placeholder: 'Mã số thuế cá nhân' },
   { key: 'cccd', label: 'CCCD', value: '', section: 'Party B', placeholder: 'Số CCCD/CMND' },
+  { key: 'ma_cbnv', label: 'Mã CBNV/HSSV', value: '', section: 'Party B', placeholder: 'Mã cán bộ nhân viên / học sinh sinh viên' },
   { key: 'ngay_cap', label: 'Ngày cấp', value: '', section: 'Party B', placeholder: 'Ngày cấp CCCD', type: 'date' },
   { key: 'noi_cap', label: 'Nơi cấp', value: '', section: 'Party B', placeholder: 'Nơi cấp CCCD' },
 
@@ -114,3 +115,25 @@ export const DEFAULT_FIELDS: DocField[] = [
   { key: 'thuc_nhan', label: 'Thực nhận', value: '', section: 'Financial', placeholder: 'Số tiền thực nhận' },
   { key: 'bang_chu_thuc_nhan', label: 'Bằng chữ (Thực nhận)', value: '', section: 'Financial', placeholder: 'Số tiền thực nhận bằng chữ' },
 ];
+
+// Acceptance Report (Biên bản nghiệm thu hàng loạt)
+export interface AcceptancePersonEntry {
+  profile_id: string;
+  ho_ten: string;
+  cccd: string;
+  ma_cbnv: string;
+  mst: string;
+  so_tien_truoc_thue: number;
+  thue_tncn: number;
+  so_tien_thuc_chi: number;
+  noi_dung_cong_viec: string;
+  ket_qua: string;
+}
+
+export interface AcceptanceReportData {
+  ten_bien_ban: string;
+  so_bien_ban: string;
+  nguoi_lap: string;
+  nguoi_phe_duyet: string;
+  entries: AcceptancePersonEntry[];
+}

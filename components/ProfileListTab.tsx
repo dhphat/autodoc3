@@ -117,6 +117,7 @@ const ProfileListTab: React.FC<ProfileListTabProps> = ({ profiles, onEdit, onPro
                 <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Email</th>
                 <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">CCCD</th>
                 <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">MST</th>
+                <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Mã CBNV</th>
                 <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Ngân hàng</th>
                 <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">STK</th>
                 <th className="py-3 px-3 text-xs font-semibold text-slate-500 uppercase">Ảnh CCCD</th>
@@ -142,6 +143,7 @@ const ProfileListTab: React.FC<ProfileListTabProps> = ({ profiles, onEdit, onPro
                     <td className="py-3 px-4 text-sm text-slate-600 max-w-[150px] truncate">{profile.data['email'] || '—'}</td>
                     <td className="py-3 px-4 text-sm text-slate-600 font-mono text-xs">{profile.data['cccd'] || '—'}</td>
                     <td className="py-3 px-4 text-sm text-slate-600 font-mono text-xs">{profile.data['mst'] || '—'}</td>
+                    <td className="py-3 px-4 text-sm text-slate-600 font-mono text-xs">{profile.data['ma_cbnv'] || '—'}</td>
                     <td className="py-3 px-4 text-xs text-slate-600 max-w-[120px] truncate">{profile.data['ngan_hang'] || '—'}</td>
                     <td className="py-3 px-4 text-sm text-slate-600 font-mono text-xs">{profile.data['stk'] || '—'}</td>
                     <td className="py-3 px-3" onClick={(e) => e.stopPropagation()}>

@@ -6,13 +6,14 @@ import Toast from './components/Toast';
 import ProfileListTab from './components/ProfileListTab';
 import ProfileEditModal from './components/ProfileEditModal';
 import ContractsTab from './components/ContractsTab';
+import AcceptanceTab from './components/AcceptanceTab';
 import LoginPage from './components/LoginPage';
 import GuestFormPage from './components/GuestFormPage';
 import { DocField, DEFAULT_FIELDS, SavedProfile } from './types';
 import { getProfiles, updateProfile, deleteProfile } from './services/supabaseService';
 import type { User } from '@supabase/supabase-js';
 
-type Tab = 'profiles' | 'contracts';
+type Tab = 'profiles' | 'contracts' | 'acceptance';
 
 const App: React.FC = () => {
   // Route: /form -> Guest public form
@@ -178,6 +179,12 @@ const MainApp: React.FC<{ user: User }> = ({ user }) => {
               <FileSignature className="w-4 h-4" /> Hợp Đồng
             </button>
             <button
+              onClick={() => setActiveTab('acceptance')}
+              className={`py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'acceptance' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+            >
+              <FileSignature className="w-4 h-4" /> Biên Bản NT
+            </button>
+            <button
               onClick={() => setActiveTab('profiles')}
               className={`py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${activeTab === 'profiles' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
             >
@@ -190,6 +197,11 @@ const MainApp: React.FC<{ user: User }> = ({ user }) => {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'contracts' && <ContractsTab profiles={savedProfiles} />}
+        {activeTab === 'acceptance' && (
+          <div className="animate-fadeIn">
+            <AcceptanceTab profiles={savedProfiles} />
+          </div>
+        )}
         {activeTab === 'profiles' && (
           <div className="animate-fadeIn">
             <ProfileListTab
