@@ -425,14 +425,9 @@ const GuestFormPage: React.FC = () => {
       )}
 
       <div className="bg-white/80 backdrop-blur border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <img src="/favicon.png" alt="FES Contract" className="w-8 h-8 rounded-lg" />
-            <h1 className="text-lg font-bold text-slate-800">FES Contract</h1>
-          </div>
-          <button onClick={() => setShowGuide(true)} className="flex items-center gap-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg transition-colors">
-            <HelpCircle className="w-4 h-4" /> Xem hướng dẫn
-          </button>
+        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-2.5">
+          <img src="/favicon.png" alt="FES Contract" className="w-8 h-8 rounded-lg" />
+          <h1 className="text-lg font-bold text-slate-800">FES Contract</h1>
         </div>
       </div>
 
@@ -453,10 +448,15 @@ const GuestFormPage: React.FC = () => {
 
             {/* CCCD Images */}
             <div>
-              <h3 className="text-sm font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4 flex items-center gap-2">
-                <ImageIcon className="w-4 h-4 text-blue-600" />
-                Ảnh Căn cước công dân (CCCD) & VNeID
-              </h3>
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2 mb-4">
+                <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4 text-blue-600" />
+                  Ảnh Căn cước công dân (CCCD) & VNeID
+                </h3>
+                <button type="button" onClick={() => setShowGuide(true)} className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors bg-blue-50 px-2 py-1.5 rounded-md">
+                  <HelpCircle className="w-3.5 h-3.5" /> Xem hướng dẫn up ảnh
+                </button>
+              </div>
               {vneidLevel === '2' ? (
                 <div className="grid grid-cols-2 gap-4">
                   {renderImageUpload('vneid2_1', 'VNeID mức 2 - Ảnh 1', vneid2_1Ref as React.RefObject<HTMLInputElement>)}

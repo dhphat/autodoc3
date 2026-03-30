@@ -66,6 +66,17 @@ const ContractsTab: React.FC<ContractsTabProps> = ({ profiles }) => {
     } catch (err: any) { alert('Lỗi upload: ' + err.message); }
   };
 
+  const handleDownloadTemplate = (file: File) => {
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleDelete = async (id: string) => {
     if (!window.confirm('Xóa hợp đồng này?')) return;
     try { await deleteContract(id); setContracts(prev => prev.filter(c => c.id !== id)); } catch (err: any) { alert('Lỗi: ' + err.message); }
@@ -129,17 +140,27 @@ const ContractsTab: React.FC<ContractsTabProps> = ({ profiles }) => {
           <div className="px-4 pb-4 animate-fadeIn">
             <p className="text-xs text-slate-500 mb-3">Upload mẫu mặc định áp dụng cho toàn bộ hệ thống. Người dùng có thể dùng mẫu riêng khi tạo/sửa hợp đồng.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
+              <div className="flex gap-2 relative">
                 <input ref={templateUploadRef1} type="file" accept=".docx" className="hidden" onChange={(e) => e.target.files?.[0] && handleTemplateUpload(e.target.files[0], 'contract')} />
-                <button onClick={() => templateUploadRef1.current?.click()} className={`w-full border-2 border-dashed rounded-lg p-4 text-sm flex items-center justify-center gap-2 transition-colors ${defaultContractTemplate ? 'border-green-300 bg-green-50 text-green-700' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}>
-                  <Upload className="w-4 h-4" /> {defaultContractTemplate ? `✓ Mẫu HĐ: ${defaultContractTemplate.name}` : 'Upload Mẫu Hợp Đồng'}
+                <button onClick={() => templateUploadRef1.current?.click()} className={`flex-1 border-2 border-dashed rounded-lg p-3 text-sm flex items-center justify-center gap-2 transition-colors ${defaultContractTemplate ? 'border-green-300 bg-green-50 text-green-700' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}>
+                  <Upload className="w-4 h-4" /> {defaultContractTemplate ? `Mẫu HĐ: ${defaultContractTemplate.name}` : 'Upload Mẫu Hợp Đồng'}
                 </button>
+                {defaultContractTemplate && (
+                  <button onClick={() => handleDownloadTemplate(defaultContractTemplate)} className="flex-none bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 border border-blue-200 rounded-lg p-3 transition-colors flex items-center justify-center" title="Tải xuống mẫu hợp đồng">
+                    <Download className="w-4 h-4" />
+                  </button>
+                )}
               </div>
-              <div>
+              <div className="flex gap-2 relative">
                 <input ref={templateUploadRef2} type="file" accept=".docx" className="hidden" onChange={(e) => e.target.files?.[0] && handleTemplateUpload(e.target.files[0], 'acceptance')} />
-                <button onClick={() => templateUploadRef2.current?.click()} className={`w-full border-2 border-dashed rounded-lg p-4 text-sm flex items-center justify-center gap-2 transition-colors ${defaultAcceptanceTemplate ? 'border-green-300 bg-green-50 text-green-700' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}>
-                  <Upload className="w-4 h-4" /> {defaultAcceptanceTemplate ? `✓ Mẫu NT: ${defaultAcceptanceTemplate.name}` : 'Upload Mẫu Nghiệm Thu'}
+                <button onClick={() => templateUploadRef2.current?.click()} className={`flex-1 border-2 border-dashed rounded-lg p-3 text-sm flex items-center justify-center gap-2 transition-colors ${defaultAcceptanceTemplate ? 'border-green-300 bg-green-50 text-green-700' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}>
+                  <Upload className="w-4 h-4" /> {defaultAcceptanceTemplate ? `Mẫu NT: ${defaultAcceptanceTemplate.name}` : 'Upload Mẫu Nghiệm Thu'}
                 </button>
+                {defaultAcceptanceTemplate && (
+                  <button onClick={() => handleDownloadTemplate(defaultAcceptanceTemplate)} className="flex-none bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 border border-blue-200 rounded-lg p-3 transition-colors flex items-center justify-center" title="Tải xuống mẫu nghiệm thu">
+                    <Download className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
             {templateLoading && <p className="text-xs text-slate-400 mt-2 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Đang tải...</p>}
