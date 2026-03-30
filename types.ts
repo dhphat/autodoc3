@@ -27,6 +27,8 @@ export interface SavedProfile {
   id_card_front_url?: string | null;
   id_card_back_url?: string | null;
   id_card_portrait_url?: string | null;
+  vneid_2_photo_1_url?: string | null;
+  vneid_2_photo_2_url?: string | null;
   created_at: string;
 }
 
@@ -85,6 +87,18 @@ export const DEFAULT_FIELDS: DocField[] = [
   { key: 'mst', label: 'MST', value: '', section: 'Party B', placeholder: 'Mã số thuế cá nhân' },
   { key: 'cccd', label: 'CCCD', value: '', section: 'Party B', placeholder: 'Số CCCD/CMND' },
   { key: 'ma_cbnv', label: 'Mã CBNV/HSSV', value: '', section: 'Party B', placeholder: 'Mã cán bộ nhân viên / học sinh sinh viên' },
+  { 
+    key: 'vneid_level', 
+    label: 'Định danh VNeID mức', 
+    value: '1', 
+    section: 'Party B', 
+    placeholder: 'Chọn mức định danh',
+    type: 'select',
+    options: [
+      { label: 'Mức 1', value: '1' },
+      { label: 'Mức 2', value: '2' }
+    ]
+  },
   { key: 'ngay_cap', label: 'Ngày cấp', value: '', section: 'Party B', placeholder: 'Ngày cấp CCCD', type: 'date' },
   { key: 'noi_cap', label: 'Nơi cấp', value: '', section: 'Party B', placeholder: 'Nơi cấp CCCD' },
 

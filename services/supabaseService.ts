@@ -37,7 +37,7 @@ const compressImage = (file: File, maxWidth = 600, quality = 0.6): Promise<Blob>
 export const uploadImage = async (
   file: File,
   profileId: string,
-  type: 'front' | 'back' | 'portrait'
+  type: 'front' | 'back' | 'portrait' | 'vneid2_1' | 'vneid2_2'
 ): Promise<string> => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
@@ -96,6 +96,8 @@ export const saveProfile = async (
       id_card_front_url: profile.id_card_front_url || null,
       id_card_back_url: profile.id_card_back_url || null,
       id_card_portrait_url: profile.id_card_portrait_url || null,
+      vneid_2_photo_1_url: profile.vneid_2_photo_1_url || null,
+      vneid_2_photo_2_url: profile.vneid_2_photo_2_url || null,
     })
     .select()
     .single();
@@ -113,6 +115,8 @@ export const updateProfile = async (profile: SavedProfile): Promise<void> => {
       id_card_front_url: profile.id_card_front_url || null,
       id_card_back_url: profile.id_card_back_url || null,
       id_card_portrait_url: profile.id_card_portrait_url || null,
+      vneid_2_photo_1_url: profile.vneid_2_photo_1_url || null,
+      vneid_2_photo_2_url: profile.vneid_2_photo_2_url || null,
     })
     .eq('id', profile.id);
 

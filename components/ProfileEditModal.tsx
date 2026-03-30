@@ -31,6 +31,8 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
   const [imgFrontUrl, setImgFrontUrl] = useState<string | null>(null);
   const [imgBackUrl, setImgBackUrl] = useState<string | null>(null);
   const [imgPortraitUrl, setImgPortraitUrl] = useState<string | null>(null);
+  const [imgVneid2_1Url, setImgVneid2_1Url] = useState<string | null>(null);
+  const [imgVneid2_2Url, setImgVneid2_2Url] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -38,7 +40,7 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
   const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
 
   const isCreate = !profile;
-  const pendingFiles = React.useRef<{ front?: File; back?: File; portrait?: File }>({});
+  const pendingFiles = React.useRef<{ front?: File; back?: File; portrait?: File; vneid2_1?: File; vneid2_2?: File }>({});
 
   useEffect(() => {
     if (isOpen) {
@@ -47,6 +49,8 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
         setImgFrontUrl(profile.id_card_front_url || null);
         setImgBackUrl(profile.id_card_back_url || null);
         setImgPortraitUrl(profile.id_card_portrait_url || null);
+        setImgVneid2_1Url(profile.vneid_2_photo_1_url || null);
+        setImgVneid2_2Url(profile.vneid_2_photo_2_url || null);
       } else {
         const emptyData: Record<string, string> = {};
         fieldDefinitions.filter(f => f.section === 'Party B').forEach(f => { emptyData[f.key] = f.value || ''; });
@@ -54,6 +58,8 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
         setImgFrontUrl(null);
         setImgBackUrl(null);
         setImgPortraitUrl(null);
+        setImgVneid2_1Url(null);
+        setImgVneid2_2Url(null);
       }
       setErrors({});
       setShowDeleteConfirm(false);
@@ -117,7 +123,7 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
     }, delay);
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'front' | 'back' | 'portrait') => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'front' | 'back' | 'portrait' | 'vneid2_1' | 'vneid2_2') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -125,10 +131,10 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
       const localUrl = URL.createObjectURL(file);
       if (type === 'front') setImgFrontUrl(localUrl);
       else if (type === 'back') setImgBackUrl(localUrl);
-      else setImgPortraitUrl(localUrl);
-      if (type === 'front') pendingFiles.current.front = file;
-      else if (type === 'back') pendingFiles.current.back = file;
-      else pendingFiles.current.portrait = file;
+      else if (type === 'portrait') setImgPortraitUrl(localUrl);
+      else if (type === 'vneid2_1') setImgVneid2_1Url(localUrl);
+      else if (type === 'vneid2_2') setImgVneid2_2Url(localUrl);
+      pendingFiles.current[type] = file;
       return;
     }
 
@@ -138,7 +144,9 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
       const url = await uploadImage(file, profile.id, type);
       if (type === 'front') setImgFrontUrl(url);
       else if (type === 'back') setImgBackUrl(url);
-      else setImgPortraitUrl(url);
+      else if (type === 'portrait') setImgPortraitUrl(url);
+      else if (type === 'vneid2_1') setImgVneid2_1Url(url);
+      else if (type === 'vneid2_2') setImgVneid2_2Url(url);
     } catch (err: any) {
       alert('Lỗi upload ảnh: ' + err.message);
     } finally {
@@ -184,12 +192,17 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
           id_card_front_url: null,
           id_card_back_url: null,
           id_card_portrait_url: null,
+          vneid_2_photo_1_url: null,
+          vneid_2_photo_2_url: null,
         });
 
         let frontUrl = null, backUrl = null, portraitUrl = null;
+        let vneid2_1Url = null, vneid2_2Url = null;
         if (pendingFiles.current.front) frontUrl = await uploadImage(pendingFiles.current.front, newProfile.id, 'front');
         if (pendingFiles.current.back) backUrl = await uploadImage(pendingFiles.current.back, newProfile.id, 'back');
         if (pendingFiles.current.portrait) portraitUrl = await uploadImage(pendingFiles.current.portrait, newProfile.id, 'portrait');
+        if (pendingFiles.current.vneid2_1) vneid2_1Url = await uploadImage(pendingFiles.current.vneid2_1, newProfile.id, 'vneid2_1');
+        if (pendingFiles.current.vneid2_2) vneid2_2Url = await uploadImage(pendingFiles.current.vneid2_2, newProfile.id, 'vneid2_2');
 
         const finalProfile = {
           ...newProfile,
@@ -198,9 +211,11 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
           id_card_front_url: frontUrl,
           id_card_back_url: backUrl,
           id_card_portrait_url: portraitUrl,
+          vneid_2_photo_1_url: vneid2_1Url,
+          vneid_2_photo_2_url: vneid2_2Url,
         };
 
-        if (frontUrl || backUrl || portraitUrl) {
+        if (frontUrl || backUrl || portraitUrl || vneid2_1Url || vneid2_2Url) {
           const { updateProfile: updateProfileFn } = await import('../services/supabaseService');
           await updateProfileFn(finalProfile);
         }
@@ -216,6 +231,8 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
           id_card_front_url: imgFrontUrl || null,
           id_card_back_url: imgBackUrl || null,
           id_card_portrait_url: imgPortraitUrl || null,
+          vneid_2_photo_1_url: imgVneid2_1Url || null,
+          vneid_2_photo_2_url: imgVneid2_2Url || null,
         });
         onClose();
       }
@@ -243,7 +260,7 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
 
   const profileFields = fieldDefinitions.filter(f => f.section === 'Party B' && f.key !== 'ten_viet_tat');
 
-  const renderImageSlot = (type: 'front' | 'back' | 'portrait', label: string, url: string | null) => {
+  const renderImageSlot = (type: 'front' | 'back' | 'portrait' | 'vneid2_1' | 'vneid2_2', label: string, url: string | null) => {
     const inputId = `edit-${type}-${profile?.id || 'new'}-${Math.random()}`;
     const isUploading = uploadingType === type;
 
@@ -390,11 +407,18 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
               <h4 className="text-sm font-bold text-slate-900 border-b pb-2 flex items-center gap-2">
                 <ImageIcon className="w-4 h-4 text-blue-600" /> Ảnh Căn cước công dân (CCCD) & VNeID
               </h4>
-              <div className="grid grid-cols-3 gap-6">
-                {renderImageSlot('front', 'Mặt Trước', imgFrontUrl)}
-                {renderImageSlot('back', 'Mặt Sau', imgBackUrl)}
-                {renderImageSlot('portrait', 'Ảnh VNeID', imgPortraitUrl)}
-              </div>
+              {data['vneid_level'] === '2' ? (
+                <div className="grid grid-cols-2 gap-6">
+                  {renderImageSlot('vneid2_1', 'VNeID mức 2 - Ảnh 1', imgVneid2_1Url)}
+                  {renderImageSlot('vneid2_2', 'VNeID mức 2 - Ảnh 2', imgVneid2_2Url)}
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-6">
+                  {renderImageSlot('front', 'Mặt Trước', imgFrontUrl)}
+                  {renderImageSlot('back', 'Mặt Sau', imgBackUrl)}
+                  {renderImageSlot('portrait', 'Ảnh VNeID (Mức 1)', imgPortraitUrl)}
+                </div>
+              )}
             </div>
           </div>
 

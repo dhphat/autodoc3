@@ -167,9 +167,17 @@ const ContractModal: React.FC<ContractModalProps> = ({
         }
       };
 
-      if (profile?.id_card_front_url) await downloadImg(profile.id_card_front_url, 'cccd_truoc');
-      if (profile?.id_card_back_url) await downloadImg(profile.id_card_back_url, 'cccd_sau');
-      if (profile?.id_card_portrait_url) await downloadImg(profile.id_card_portrait_url, 'vneid');
+      const vneidLevel = profileData['vneid_level'] || '1';
+      if (vneidLevel === '2') {
+        // VNeID mức 2: chỉ chèn 2 ảnh VNeID mức 2
+        if (profile?.vneid_2_photo_1_url) await downloadImg(profile.vneid_2_photo_1_url, 'vneid_2_anh_1');
+        if (profile?.vneid_2_photo_2_url) await downloadImg(profile.vneid_2_photo_2_url, 'vneid_2_anh_2');
+      } else {
+        // VNeID mức 1: chèn 3 ảnh CCCD + VNeID mức 1
+        if (profile?.id_card_front_url) await downloadImg(profile.id_card_front_url, 'cccd_truoc');
+        if (profile?.id_card_back_url) await downloadImg(profile.id_card_back_url, 'cccd_sau');
+        if (profile?.id_card_portrait_url) await downloadImg(profile.id_card_portrait_url, 'vneid');
+      }
 
       const name = profile?.name || contract?.profile_name || 'Moi';
       const fileName = type === 'contract' ? `HopDong_${name}.docx` : `NghiemThu_${name}.docx`;

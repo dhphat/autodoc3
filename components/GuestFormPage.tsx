@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { FileText, Upload, Loader2, CheckCircle, Image as ImageIcon, ChevronDown } from 'lucide-react';
+import { FileText, Upload, Loader2, CheckCircle, Image as ImageIcon, ChevronDown, HelpCircle, X } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 import { DEFAULT_FIELDS, DocField } from '../types';
 import { validateField } from '../utils/validation';
@@ -35,8 +35,8 @@ const genAbbr = (name: string) => name.trim().split(/\s+/).map(w => w.charAt(0).
 
 const GuestFormPage: React.FC = () => {
   const [data, setData] = useState<Record<string, string>>({});
-  const [images, setImages] = useState<{ front?: File; back?: File; portrait?: File }>({});
-  const [imagePreviews, setImagePreviews] = useState<{ front?: string; back?: string; portrait?: string }>({});
+  const [images, setImages] = useState<{ front?: File; back?: File; portrait?: File; vneid2_1?: File; vneid2_2?: File }>({});
+  const [imagePreviews, setImagePreviews] = useState<{ front?: string; back?: string; portrait?: string; vneid2_1?: string; vneid2_2?: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -44,10 +44,15 @@ const GuestFormPage: React.FC = () => {
   const [bankQuery, setBankQuery] = useState('');
   const [isBankOpen, setIsBankOpen] = useState(false);
   const bankRef = useRef<HTMLDivElement>(null);
+  const [showGuide, setShowGuide] = useState(false);
 
   const frontRef = useRef<HTMLInputElement>(null);
   const backRef = useRef<HTMLInputElement>(null);
   const portraitRef = useRef<HTMLInputElement>(null);
+  const vneid2_1Ref = useRef<HTMLInputElement>(null);
+  const vneid2_2Ref = useRef<HTMLInputElement>(null);
+
+  const vneidLevel = data['vneid_level'] || '1';
 
   // Profile fields (Party B section) without ten_viet_tat
   const profileFields = DEFAULT_FIELDS
@@ -103,13 +108,13 @@ const GuestFormPage: React.FC = () => {
     });
   };
 
-  const handleImageSelect = (type: 'front' | 'back' | 'portrait', file: File) => {
+  const handleImageSelect = (type: 'front' | 'back' | 'portrait' | 'vneid2_1' | 'vneid2_2', file: File) => {
     setImages(prev => ({ ...prev, [type]: file }));
     setImagePreviews(prev => ({ ...prev, [type]: URL.createObjectURL(file) }));
   };
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string | undefined>>({});
-  const [imageErrors, setImageErrors] = useState<{ front?: boolean; back?: boolean; portrait?: boolean }>({});
+  const [imageErrors, setImageErrors] = useState<{ front?: boolean; back?: boolean; portrait?: boolean; vneid2_1?: boolean; vneid2_2?: boolean }>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,11 +137,16 @@ const GuestFormPage: React.FC = () => {
       }
     });
 
-    // Validate images
-    const newImageErrors: { front?: boolean; back?: boolean; portrait?: boolean } = {};
-    if (!images.front) { newImageErrors.front = true; missingOrInvalidCount++; }
-    if (!images.back) { newImageErrors.back = true; missingOrInvalidCount++; }
-    if (!images.portrait) { newImageErrors.portrait = true; missingOrInvalidCount++; }
+    // Validate images based on VNeID level
+    const newImageErrors: { front?: boolean; back?: boolean; portrait?: boolean; vneid2_1?: boolean; vneid2_2?: boolean } = {};
+    if (vneidLevel === '2') {
+      if (!images.vneid2_1) { newImageErrors.vneid2_1 = true; missingOrInvalidCount++; }
+      if (!images.vneid2_2) { newImageErrors.vneid2_2 = true; missingOrInvalidCount++; }
+    } else {
+      if (!images.front) { newImageErrors.front = true; missingOrInvalidCount++; }
+      if (!images.back) { newImageErrors.back = true; missingOrInvalidCount++; }
+      if (!images.portrait) { newImageErrors.portrait = true; missingOrInvalidCount++; }
+    }
 
     setFieldErrors(newFieldErrors);
     setImageErrors(newImageErrors);
@@ -162,6 +172,8 @@ const GuestFormPage: React.FC = () => {
       let frontUrl: string | null = null;
       let backUrl: string | null = null;
       let portraitUrl: string | null = null;
+      let vneid2_1Url: string | null = null;
+      let vneid2_2Url: string | null = null;
 
       const uploadImg = async (file: File, type: string) => {
         const compressed = await compressImage(file);
@@ -172,9 +184,14 @@ const GuestFormPage: React.FC = () => {
         return publicUrl;
       };
 
-      if (images.front) frontUrl = await uploadImg(images.front, 'front');
-      if (images.back) backUrl = await uploadImg(images.back, 'back');
-      if (images.portrait) portraitUrl = await uploadImg(images.portrait, 'portrait');
+      if (vneidLevel === '2') {
+        if (images.vneid2_1) vneid2_1Url = await uploadImg(images.vneid2_1, 'vneid2_1');
+        if (images.vneid2_2) vneid2_2Url = await uploadImg(images.vneid2_2, 'vneid2_2');
+      } else {
+        if (images.front) frontUrl = await uploadImg(images.front, 'front');
+        if (images.back) backUrl = await uploadImg(images.back, 'back');
+        if (images.portrait) portraitUrl = await uploadImg(images.portrait, 'portrait');
+      }
 
       // Create profile (guest — no user_id)
       const { error: insertError } = await supabase.from('profiles').insert({
@@ -183,6 +200,8 @@ const GuestFormPage: React.FC = () => {
         id_card_front_url: frontUrl,
         id_card_back_url: backUrl,
         id_card_portrait_url: portraitUrl,
+        vneid_2_photo_1_url: vneid2_1Url,
+        vneid_2_photo_2_url: vneid2_2Url,
       });
 
       if (insertError) throw insertError;
@@ -344,7 +363,7 @@ const GuestFormPage: React.FC = () => {
     );
   };
 
-  const renderImageUpload = (type: 'front' | 'back' | 'portrait', label: string, ref: React.RefObject<HTMLInputElement>) => {
+  const renderImageUpload = (type: 'front' | 'back' | 'portrait' | 'vneid2_1' | 'vneid2_2', label: string, ref: React.RefObject<HTMLInputElement>) => {
     const preview = imagePreviews[type];
     const hasError = imageErrors[type];
 
@@ -393,10 +412,27 @@ const GuestFormPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       {/* Header */}
+      {/* Guide Modal */}
+      {showGuide && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowGuide(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-auto p-4 relative" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setShowGuide(false)} className="absolute top-3 right-3 text-slate-400 hover:text-slate-700 bg-white rounded-full p-1 shadow-sm z-10">
+              <X className="w-5 h-5" />
+            </button>
+            <img src="/H%C6%B0%E1%BB%9Bng%20d%E1%BA%ABn.png" alt="Hướng dẫn" className="w-full rounded-lg" />
+          </div>
+        </div>
+      )}
+
       <div className="bg-white/80 backdrop-blur border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-2.5">
-          <img src="/favicon.png" alt="FES Contract" className="w-8 h-8 rounded-lg" />
-          <h1 className="text-lg font-bold text-slate-800">FES Contract</h1>
+        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <img src="/favicon.png" alt="FES Contract" className="w-8 h-8 rounded-lg" />
+            <h1 className="text-lg font-bold text-slate-800">FES Contract</h1>
+          </div>
+          <button onClick={() => setShowGuide(true)} className="flex items-center gap-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-2 rounded-lg transition-colors">
+            <HelpCircle className="w-4 h-4" /> Xem hướng dẫn
+          </button>
         </div>
       </div>
 
@@ -421,11 +457,18 @@ const GuestFormPage: React.FC = () => {
                 <ImageIcon className="w-4 h-4 text-blue-600" />
                 Ảnh Căn cước công dân (CCCD) & VNeID
               </h3>
-              <div className="grid grid-cols-3 gap-4">
-                {renderImageUpload('front', 'Mặt Trước', frontRef as React.RefObject<HTMLInputElement>)}
-                {renderImageUpload('back', 'Mặt Sau', backRef as React.RefObject<HTMLInputElement>)}
-                {renderImageUpload('portrait', 'Ảnh VNeID', portraitRef as React.RefObject<HTMLInputElement>)}
-              </div>
+              {vneidLevel === '2' ? (
+                <div className="grid grid-cols-2 gap-4">
+                  {renderImageUpload('vneid2_1', 'VNeID mức 2 - Ảnh 1', vneid2_1Ref as React.RefObject<HTMLInputElement>)}
+                  {renderImageUpload('vneid2_2', 'VNeID mức 2 - Ảnh 2', vneid2_2Ref as React.RefObject<HTMLInputElement>)}
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-4">
+                  {renderImageUpload('front', 'Mặt Trước', frontRef as React.RefObject<HTMLInputElement>)}
+                  {renderImageUpload('back', 'Mặt Sau', backRef as React.RefObject<HTMLInputElement>)}
+                  {renderImageUpload('portrait', 'Ảnh VNeID (Mức 1)', portraitRef as React.RefObject<HTMLInputElement>)}
+                </div>
+              )}
             </div>
 
             {/* Error */}
