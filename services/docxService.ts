@@ -541,14 +541,36 @@ export const generateImageDocx = async (profiles: SavedProfile[], soBienBan: str
         const blob = await resp.blob();
         const arrayBuffer = await blob.arrayBuffer();
 
+        // Get original dimensions to maintain aspect ratio
+        const imgDimensions = await new Promise<{ width: number; height: number }>((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            resolve({ width: img.width, height: img.height });
+          };
+          img.onerror = () => {
+            resolve({ width: 500, height: 350 }); // Fallback
+          };
+          img.src = URL.createObjectURL(blob);
+        });
+
+        const maxWidth = 550; // Max width in pixels for DOCX
+        let finalWidth = imgDimensions.width;
+        let finalHeight = imgDimensions.height;
+
+        if (finalWidth > maxWidth) {
+          const ratio = maxWidth / finalWidth;
+          finalWidth = maxWidth;
+          finalHeight = finalHeight * ratio;
+        }
+
         children.push(
           new Paragraph({
             children: [
               new ImageRun({
                 data: new Uint8Array(arrayBuffer),
                 transformation: {
-                  width: 500,
-                  height: 350,
+                  width: finalWidth,
+                  height: finalHeight,
                 },
               } as any),
             ],
