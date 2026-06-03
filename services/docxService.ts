@@ -1,6 +1,8 @@
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import { saveAs } from 'file-saver';
+import { Document, Packer, Paragraph, TextRun, ImageRun, PageBreak, HeadingLevel } from 'docx';
+import { SavedProfile } from '../types';
 
 // Access DocUtils from docxtemplater for module compatibility
 const DocUtils = (Docxtemplater as any).DocUtils;
@@ -507,3 +509,83 @@ export const generateDocument = ({ file, data, fileName, images }: GenerateOptio
     reader.readAsArrayBuffer(file);
   });
 };
+
+// ============================================================
+// Image Document Generator (DOCX with CCCD & VNeID images)
+// ============================================================
+
+export const generateImageDocx = async (profiles: SavedProfile[], soBienBan: string): Promise<void> => {
+  const sections = [];
+
+  for (let i = 0; i < profiles.length; i++) {
+    const p = profiles[i];
+    const children: any[] = [
+      new Paragraph({
+        text: `${i + 1}. ${p.data['ho_ten'] || p.name}`,
+        heading: HeadingLevel.HEADING_1,
+        spacing: { after: 200 },
+      }),
+    ];
+
+    const imageUrls = [
+      p.id_card_front_url,
+      p.id_card_back_url,
+      p.id_card_portrait_url,
+      p.vneid_2_photo_1_url,
+      p.vneid_2_photo_2_url,
+    ].filter(Boolean) as string[];
+
+    for (const url of imageUrls) {
+      try {
+        const resp = await fetch(url);
+        const blob = await resp.blob();
+        const arrayBuffer = await blob.arrayBuffer();
+
+        children.push(
+          new Paragraph({
+            children: [
+              new ImageRun({
+                data: new Uint8Array(arrayBuffer),
+                transformation: {
+                  width: 500,
+                  height: 350,
+                },
+              } as any),
+            ],
+            spacing: { after: 200 },
+          })
+        );
+      } catch (err) {
+        console.warn(`Failed to fetch image: ${url}`, err);
+        children.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: `[Lỗi tải ảnh: ${url}]`,
+                color: 'FF0000',
+              }),
+            ],
+          })
+        );
+      }
+    }
+
+    // Add page break except for the last person
+    if (i < profiles.length - 1) {
+      children.push(new Paragraph({ children: [new PageBreak()] }));
+    }
+
+    sections.push({
+      children,
+    });
+  }
+
+  const doc = new Document({
+    sections,
+  });
+
+  const buffer = await Packer.toBlob(doc);
+  const fileName = `Anh_CCCD_VNeID_${soBienBan.replace(/[/\\?%*:|"<>]/g, '_')}.docx`;
+  saveAs(buffer, fileName);
+};
+

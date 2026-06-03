@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
-import { AcceptanceReportData } from '../types';
+import { AcceptanceReportData, AcceptancePersonEntry, SavedProfile } from '../types';
 
 const FONT_NAME = 'Times New Roman';
 
@@ -281,4 +281,126 @@ export const generateAcceptanceExcel = async (data: AcceptanceReportData): Promi
 
   const fileName = `BBNT_${data.so_bien_ban.replace(/[/\\?%*:|"<>]/g, '_')}.xlsx`;
   saveAs(blob, fileName);
+};
+
+// ===================== Helper Functions =====================
+
+/** Remove Vietnamese diacritics from a string */
+const removeVietnameseDiacritics = (str: string): string => {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
+};
+
+/** Convert date from dd/mm/yyyy or yyyy-mm-dd to ddmmyyyy */
+const formatDateDDMMYYYY = (dateStr: string): string => {
+  if (!dateStr) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split('-');
+    return `${d}${m}${y}`;
+  }
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
+    return dateStr.replace(/\//g, '');
+  }
+  return dateStr.replace(/\D/g, '');
+};
+
+const sanitizeFileName = (name: string): string => name.replace(/[/\\?%*:|"<>]/g, '_');
+
+// ===================== Payment Excel (Thông tin thanh toán) =====================
+
+export const generatePaymentExcel = async (
+  profiles: SavedProfile[],
+  entries: AcceptancePersonEntry[],
+  soBienBan: string,
+): Promise<void> => {
+  const response = await fetch(encodeURI('/Mẫu upload thông tin thanh toán.xlsx'));
+  if (!response.ok) throw new Error('Không tải được mẫu thanh toán');
+  const arrayBuffer = await response.arrayBuffer();
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(arrayBuffer);
+
+  const ws = workbook.getWorksheet('TNCN');
+  if (!ws) throw new Error('Sheet TNCN not found in template');
+
+  const now = new Date();
+  const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+
+  profiles.forEach((profile, idx) => {
+    const rowIndex = 6 + idx;
+    const row = ws.getRow(rowIndex);
+    const entry = entries[idx];
+    const data = profile.data;
+
+    row.getCell(1).value = idx + 1;                                    // STT
+    row.getCell(3).value = currentMonth;                               // Từ
+    row.getCell(4).value = currentMonth;                               // Đến ngày
+    row.getCell(5).value = data['cccd'] || '';                         // CMND/CCCD
+    row.getCell(6).value = data['ho_ten'] || '';                       // Họ và tên
+    row.getCell(7).value = formatDateDDMMYYYY(data['ngay_sinh'] || ''); // Ngày sinh
+    row.getCell(9).value = 'Khoản thu nhập từ tiền công, tiền lương'; // Khoản thu nhập
+    row.getCell(10).value = 'VND';                                    // Loại tiền
+    row.getCell(11).value = 1;                                        // Tỷ giá
+    row.getCell(12).value = entry?.so_tien_truoc_thue || 0;           // Tổng tiền tính thuế TNCN nguyên tệ
+    row.getCell(13).value = 0;                                        // Tiền thuế TNCN nguyên tệ
+    row.getCell(16).value = 'Việt Nam';                               // Quốc tịch
+    row.getCell(17).value = 'Y';                                      // Cá nhân lưu trú?
+    row.getCell(18).value = data['dia_chi'] || '';                    // Địa chỉ
+    row.getCell(19).value = data['dien_thoai'] || '';                 // Số điện thoại
+    row.getCell(20).value = data['email'] || '';                      // Email
+    row.getCell(21).value = 'Y';                                      // Có gửi mail không?
+
+    row.commit();
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  saveAs(blob, `ThanhToan_${sanitizeFileName(soBienBan)}.xlsx`);
+};
+
+// ===================== Transfer Excel (Thông tin chuyển khoản) =====================
+
+export const generateTransferExcel = async (
+  profiles: SavedProfile[],
+  entries: AcceptancePersonEntry[],
+  soBienBan: string,
+): Promise<void> => {
+  const response = await fetch(encodeURI('/Mẫu upload thông tin chuyển khoản.xlsx'));
+  if (!response.ok) throw new Error('Không tải được mẫu chuyển khoản');
+  const arrayBuffer = await response.arrayBuffer();
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(arrayBuffer);
+
+  const ws = workbook.getWorksheet('Transaction');
+  if (!ws) throw new Error('Sheet Transaction not found in template');
+
+  profiles.forEach((profile, idx) => {
+    const rowIndex = 2 + idx;
+    const row = ws.getRow(rowIndex);
+    const entry = entries[idx];
+    const data = profile.data;
+
+    const hoTenUpper = removeVietnameseDiacritics(data['ho_ten'] || '').toUpperCase();
+
+    row.getCell(1).value = data['stk'] || '';        // Tài khoản số
+    row.getCell(2).value = hoTenUpper;                // Người hưởng lợi
+    row.getCell(3).value = data['ngan_hang'] || '';   // Tại ngân hàng
+    row.getCell(4).value = data['chi_nhanh'] || '';   // Chi nhánh
+    row.getCell(5).value = entry?.so_tien_truoc_thue || 0; // Số tiền
+    row.getCell(6).value = 'VND';                     // Loại tiền
+
+    row.commit();
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  saveAs(blob, `ChuyenKhoan_${sanitizeFileName(soBienBan)}.xlsx`);
 };

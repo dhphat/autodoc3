@@ -4,7 +4,8 @@ import {
   Download, Loader2, CheckCircle2, ChevronRight, ChevronLeft, X,
 } from 'lucide-react';
 import { SavedProfile, AcceptancePersonEntry, AcceptanceReportData } from '../types';
-import { generateAcceptanceExcel } from '../services/excelService';
+import { generateAcceptanceExcel, generatePaymentExcel, generateTransferExcel } from '../services/excelService';
+import { generateImageDocx } from '../services/docxService';
 
 interface AcceptanceTabProps {
   profiles: SavedProfile[];
@@ -24,8 +25,8 @@ const parseMoney = (val: string): number => {
 const AcceptanceTab: React.FC<AcceptanceTabProps> = ({ profiles }) => {
   const [step, setStep] = useState<Step>(1);
 
-  // Step 1: Selected profiles
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Step 1: Selected profiles (using array to maintain order)
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [profileSearch, setProfileSearch] = useState('');
 
   // Step 2: Report info + per-person financial data
@@ -57,27 +58,35 @@ const AcceptanceTab: React.FC<AcceptanceTabProps> = ({ profiles }) => {
     );
   }, [profiles, profileSearch]);
 
-  // Get selected profiles in order
+  // Get selected profiles in order of selection
   const selectedProfiles = useMemo(() => {
-    return profiles.filter(p => selectedIds.has(p.id));
+    return selectedIds
+      .map(id => profiles.find(p => p.id === id))
+      .filter((p): p is SavedProfile => !!p);
   }, [profiles, selectedIds]);
 
   const toggleProfile = (id: string) => {
     setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+      if (prev.includes(id)) {
+        return prev.filter(item => item !== id);
+      } else {
+        return [...prev, id];
+      }
     });
   };
 
   const selectAll = () => {
-    const ids = filteredProfiles.map(p => p.id);
-    setSelectedIds(new Set(ids));
+    const newIds = [...selectedIds];
+    filteredProfiles.forEach(p => {
+      if (!newIds.includes(p.id)) {
+        newIds.push(p.id);
+      }
+    });
+    setSelectedIds(newIds);
   };
 
   const deselectAll = () => {
-    setSelectedIds(new Set());
+    setSelectedIds([]);
   };
 
   // Initialize entries when moving to step 2
@@ -162,9 +171,19 @@ const AcceptanceTab: React.FC<AcceptanceTabProps> = ({ profiles }) => {
       };
 
       await generateAcceptanceExcel(reportData);
+      
+      // Export Payment Excel
+      await generatePaymentExcel(selectedProfiles, reportEntries, soBienBan);
+      
+      // Export Transfer Excel
+      await generateTransferExcel(selectedProfiles, reportEntries, soBienBan);
+      
+      // Export Images DOCX
+      await generateImageDocx(selectedProfiles, soBienBan);
+
       setExportDone(true);
     } catch (err: any) {
-      alert('Lỗi xuất Excel: ' + (err.message || err));
+      alert('Lỗi xuất file: ' + (err.message || err));
     } finally {
       setIsExporting(false);
     }
@@ -190,8 +209,8 @@ const AcceptanceTab: React.FC<AcceptanceTabProps> = ({ profiles }) => {
               <button
                 onClick={() => {
                   if (s.num === 1) setStep(1);
-                  else if (s.num === 2 && selectedIds.size > 0) goToStep2();
-                  else if (s.num === 3 && selectedIds.size > 0) setStep(3);
+                  else if (s.num === 2 && selectedIds.length > 0) goToStep2();
+                  else if (s.num === 3 && selectedIds.length > 0) setStep(3);
                 }}
                 className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-all
                   ${step === s.num
@@ -225,7 +244,7 @@ const AcceptanceTab: React.FC<AcceptanceTabProps> = ({ profiles }) => {
                   Chọn người nghiệm thu
                 </h2>
                 <p className="text-sm text-slate-500">
-                  Đã chọn <span className="font-semibold text-blue-600">{selectedIds.size}</span> / {profiles.length} hồ sơ
+                  Đã chọn <span className="font-semibold text-blue-600">{selectedIds.length}</span> / {profiles.length} hồ sơ
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -254,21 +273,21 @@ const AcceptanceTab: React.FC<AcceptanceTabProps> = ({ profiles }) => {
               <thead className="sticky top-0 z-10">
                 <tr className="bg-slate-50 border-b border-slate-200">
                   <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase w-10">
-                    <input
+                   <input
                       type="checkbox"
-                      checked={filteredProfiles.length > 0 && filteredProfiles.every(p => selectedIds.has(p.id))}
+                      checked={filteredProfiles.length > 0 && filteredProfiles.every(p => selectedIds.includes(p.id))}
                       onChange={(e) => {
                         if (e.target.checked) {
                           setSelectedIds(prev => {
-                            const next = new Set(prev);
-                            filteredProfiles.forEach(p => next.add(p.id));
+                            const next = [...prev];
+                            filteredProfiles.forEach(p => {
+                              if (!next.includes(p.id)) next.push(p.id);
+                            });
                             return next;
                           });
                         } else {
                           setSelectedIds(prev => {
-                            const next = new Set(prev);
-                            filteredProfiles.forEach(p => next.delete(p.id));
-                            return next;
+                            return prev.filter(id => !filteredProfiles.some(p => p.id === id));
                           });
                         }
                       }}
@@ -294,16 +313,16 @@ const AcceptanceTab: React.FC<AcceptanceTabProps> = ({ profiles }) => {
                     <tr
                       key={p.id}
                       onClick={() => toggleProfile(p.id)}
-                      className={`cursor-pointer transition-colors ${
-                        selectedIds.has(p.id)
+                       className={`cursor-pointer transition-colors ${
+                        selectedIds.includes(p.id)
                           ? 'bg-blue-50/60 hover:bg-blue-50'
                           : 'hover:bg-slate-50'
                       }`}
                     >
                       <td className="py-3 px-4">
-                        <input
+                         <input
                           type="checkbox"
-                          checked={selectedIds.has(p.id)}
+                          checked={selectedIds.includes(p.id)}
                           onChange={() => toggleProfile(p.id)}
                           onClick={(e) => e.stopPropagation()}
                           className="w-4 h-4 text-blue-600 rounded border-slate-300"
@@ -337,9 +356,9 @@ const AcceptanceTab: React.FC<AcceptanceTabProps> = ({ profiles }) => {
                 <span className="text-xs text-slate-500 px-2 py-1">+{selectedProfiles.length - 5} người khác</span>
               )}
             </div>
-            <button
+             <button
               onClick={goToStep2}
-              disabled={selectedIds.size === 0}
+              disabled={selectedIds.length === 0}
               className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors shadow-sm"
             >
               Tiếp theo <ChevronRight className="w-4 h-4" />
