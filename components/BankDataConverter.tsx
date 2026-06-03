@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { X, CheckCircle2, ChevronRight, AlertTriangle, Loader2 } from 'lucide-react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { X, CheckCircle2, ChevronRight, AlertTriangle, Loader2, ChevronDown } from 'lucide-react';
 import { SavedProfile } from '../types';
 import { BankData, getUniqueBanks, getBranchesByBank } from '../services/bankService';
 import { updateProfile } from '../services/supabaseService';
@@ -48,14 +48,38 @@ const BankDataConverter: React.FC<BankDataConverterProps> = ({ isOpen, onClose, 
   const [selectedBank, setSelectedBank] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('');
 
+  const [bankQuery, setBankQuery] = useState('');
+  const [isBankOpen, setIsBankOpen] = useState(false);
+  const bankRef = useRef<HTMLDivElement>(null);
+
+  const [branchQuery, setBranchQuery] = useState('');
+  const [isBranchOpen, setIsBranchOpen] = useState(false);
+  const branchRef = useRef<HTMLDivElement>(null);
+
   // Update suggestions when currentProfile changes
-  React.useEffect(() => {
+  useEffect(() => {
     if (currentProfile) {
       const suggestion = getSuggestedBank(currentProfile.data['ngan_hang'] || '');
       setSelectedBank(suggestion);
+      setBankQuery(suggestion);
       setSelectedBranch('');
+      setBranchQuery('');
     }
   }, [currentProfile]);
+
+  // Click outside to close bank/branch dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (bankRef.current && !bankRef.current.contains(event.target as Node)) {
+        setIsBankOpen(false);
+      }
+      if (branchRef.current && !branchRef.current.contains(event.target as Node)) {
+        setIsBranchOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleUpdate = async () => {
     if (!currentProfile) return;
@@ -156,28 +180,93 @@ const BankDataConverter: React.FC<BankDataConverterProps> = ({ isOpen, onClose, 
               <div className="space-y-4">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Chuẩn hóa sang</h4>
                 <div className="space-y-4">
-                  <div>
+                  {/* Searchable Bank */}
+                  <div ref={bankRef}>
                     <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Chọn Ngân hàng mới</label>
-                    <select 
-                      value={selectedBank}
-                      onChange={(e) => { setSelectedBank(e.target.value); setSelectedBranch(''); }}
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                    >
-                      <option value="">-- Chọn ngân hàng --</option>
-                      {getUniqueBanks(bankData).map(b => <option key={b} value={b}>{b}</option>)}
-                    </select>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={bankQuery}
+                        onChange={(e) => {
+                          setBankQuery(e.target.value);
+                          setIsBankOpen(true);
+                          if (selectedBank) {
+                            setSelectedBank('');
+                            setSelectedBranch('');
+                            setBranchQuery('');
+                          }
+                        }}
+                        onFocus={() => setIsBankOpen(true)}
+                        placeholder="Tìm ngân hàng..."
+                        className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none pr-8"
+                      />
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                        <ChevronDown className={`w-4 h-4 transition-transform ${isBankOpen ? 'rotate-180' : ''}`} />
+                      </div>
+                      {isBankOpen && (
+                        <div className="absolute z-[70] w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                          {getUniqueBanks(bankData)
+                            .filter(b => b.toLowerCase().includes(bankQuery.toLowerCase()))
+                            .map(b => (
+                            <div
+                              key={b}
+                              className="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 text-slate-700 border-b border-slate-50 last:border-0"
+                              onClick={() => {
+                                setSelectedBank(b);
+                                setBankQuery(b);
+                                setIsBankOpen(false);
+                                setSelectedBranch('');
+                                setBranchQuery('');
+                              }}
+                            >
+                              {b}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div>
+
+                  {/* Searchable Branch */}
+                  <div ref={branchRef}>
                     <label className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Chọn Chi nhánh mới</label>
-                    <select 
-                      value={selectedBranch}
-                      disabled={!selectedBank}
-                      onChange={(e) => setSelectedBranch(e.target.value)}
-                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-50"
-                    >
-                      <option value="">-- Chọn chi nhánh --</option>
-                      {selectedBank && getBranchesByBank(bankData, selectedBank).map(b => <option key={b} value={b}>{b}</option>)}
-                    </select>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={branchQuery}
+                        disabled={!selectedBank}
+                        onChange={(e) => {
+                          setBranchQuery(e.target.value);
+                          setIsBranchOpen(true);
+                          if (selectedBranch) setSelectedBranch('');
+                        }}
+                        onFocus={() => setIsBranchOpen(true)}
+                        placeholder={selectedBank ? "Tìm chi nhánh..." : "Chọn ngân hàng trước"}
+                        className={`w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none pr-8 ${!selectedBank ? 'bg-slate-50 cursor-not-allowed opacity-60' : ''}`}
+                      />
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                        <ChevronDown className={`w-4 h-4 transition-transform ${isBranchOpen ? 'rotate-180' : ''}`} />
+                      </div>
+                      {isBranchOpen && selectedBank && (
+                        <div className="absolute z-[70] w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                          {getBranchesByBank(bankData, selectedBank)
+                            .filter(b => b.toLowerCase().includes(branchQuery.toLowerCase()))
+                            .map(b => (
+                            <div
+                              key={b}
+                              className="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 text-slate-700 border-b border-slate-50 last:border-0"
+                              onClick={() => {
+                                setSelectedBranch(b);
+                                setBranchQuery(b);
+                                setIsBranchOpen(false);
+                              }}
+                            >
+                              {b}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
