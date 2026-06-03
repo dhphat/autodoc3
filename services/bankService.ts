@@ -7,7 +7,7 @@ export interface BankData {
 
 export const loadBankData = async (): Promise<BankData[]> => {
   try {
-    const response = await fetch(encodeURI('/Danh sách ngân hàng.csv'));
+    const response = await fetch('/danh_sach_ngan_hang.csv');
     const csvText = await response.text();
     
     return new Promise((resolve) => {
