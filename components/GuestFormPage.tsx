@@ -4,6 +4,7 @@ import { FileText, Upload, Loader2, CheckCircle, Image as ImageIcon, ChevronDown
 import { supabase } from '../services/supabaseClient';
 import { DEFAULT_FIELDS, DocField } from '../types';
 import { validateField } from '../utils/validation';
+import { BankData, loadBankData, getUniqueBanks, getBranchesByBank } from '../services/bankService';
 
 // Compress image before upload
 const compressImage = (file: File, maxWidth = 600, quality = 0.6): Promise<Blob> => {
@@ -40,10 +41,16 @@ const GuestFormPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
-  const [banks, setBanks] = useState<{ shortName: string; name: string }[]>([]);
+  
+  const [allBankData, setAllBankData] = useState<BankData[]>([]);
   const [bankQuery, setBankQuery] = useState('');
   const [isBankOpen, setIsBankOpen] = useState(false);
   const bankRef = useRef<HTMLDivElement>(null);
+
+  const [branchQuery, setBranchQuery] = useState('');
+  const [isBranchOpen, setIsBranchOpen] = useState(false);
+  const branchRef = useRef<HTMLDivElement>(null);
+
   const [showGuide, setShowGuide] = useState(false);
 
   const frontRef = useRef<HTMLInputElement>(null);
@@ -68,30 +75,25 @@ const GuestFormPage: React.FC = () => {
     dataRef.current = empty;
   }, []);
 
-  // Load banks
+  // Load bank data from CSV
   useEffect(() => {
-    fetch('https://api.vietqr.io/v2/banks')
-      .then(res => res.json())
-      .then(d => { if (d?.data) setBanks(d.data.map((b: any) => ({ shortName: b.shortName, name: b.name }))); })
-      .catch(console.error);
+    loadBankData().then(setAllBankData);
   }, []);
 
-  // Sync bank search query with selection
+  // Sync bank and branch query with selection
   useEffect(() => {
-    const selectedBank = data['ngan_hang'];
-    if (selectedBank) {
-      const match = banks.find(b => `${b.name} (${b.shortName})` === selectedBank);
-      if (match) setBankQuery(`${match.shortName} - ${match.name}`);
-    } else {
-      setBankQuery('');
-    }
-  }, [data['ngan_hang'], banks]);
+    setBankQuery(data['ngan_hang'] || '');
+    setBranchQuery(data['chi_nhanh'] || '');
+  }, [data['ngan_hang'], data['chi_nhanh']]);
 
-  // Click outside to close bank dropdown
+  // Click outside to close bank/branch dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (bankRef.current && !bankRef.current.contains(event.target as Node)) {
         setIsBankOpen(false);
+      }
+      if (branchRef.current && !branchRef.current.contains(event.target as Node)) {
+        setIsBranchOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -242,9 +244,9 @@ const GuestFormPage: React.FC = () => {
 
     // Searchable Bank Selector
     if (key === 'ngan_hang') {
-      const filteredBanks = banks.filter(b => 
-        b.shortName.toLowerCase().includes(bankQuery.toLowerCase()) || 
-        b.name.toLowerCase().includes(bankQuery.toLowerCase())
+      const uniqueBanks = getUniqueBanks(allBankData);
+      const filteredBanks = uniqueBanks.filter(b => 
+        b.toLowerCase().includes(bankQuery.toLowerCase())
       );
 
       return (
@@ -257,15 +259,14 @@ const GuestFormPage: React.FC = () => {
               onChange={(e) => {
                 setBankQuery(e.target.value);
                 setIsBankOpen(true);
-                // We clear the selection if search is modified manually
-                if (data[key]) handleChange(key, ''); 
+                if (data[key]) {
+                   handleChange(key, '');
+                   handleChange('chi_nhanh', ''); // Clear branch if bank changed
+                }
               }}
               onFocus={() => setIsBankOpen(true)}
-              onBlur={() => {
-                // Delayed validation to allow for list item selection
-                setTimeout(() => onFieldBlur(key), 200);
-              }}
-              placeholder={field.placeholder || 'Tìm kiếm ngân hàng...'}
+              onBlur={() => setTimeout(() => onFieldBlur(key), 200)}
+              placeholder={field.placeholder || 'Tìm ngân hàng...'}
               className={`${inputCls} pr-8`}
             />
             <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
@@ -277,21 +278,76 @@ const GuestFormPage: React.FC = () => {
                 {filteredBanks.length > 0 ? (
                   filteredBanks.map(b => (
                     <div
-                      key={b.shortName}
+                      key={b}
                       className="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 text-slate-700 border-b border-slate-50 last:border-0"
                       onClick={() => {
-                        const val = `${b.name} (${b.shortName})`;
-                        onFieldChange(key, val);
-                        setBankQuery(`${b.shortName} - ${b.name}`);
+                        onFieldChange(key, b);
+                        setBankQuery(b);
                         setIsBankOpen(false);
                       }}
                     >
-                      <div className="font-semibold text-xs text-blue-700">{b.shortName}</div>
-                      <div className="text-[11px] text-slate-500 truncate">{b.name}</div>
+                      <div className="font-medium">{b}</div>
                     </div>
                   ))
                 ) : (
-                  <div className="px-3 py-3 text-sm text-slate-400 text-center">Không tìm thấy kết quả</div>
+                  <div className="px-3 py-3 text-sm text-slate-400 text-center">Không tìm thấy ngân hàng</div>
+                )}
+              </div>
+            )}
+          </div>
+          {renderError()}
+        </div>
+      );
+    }
+
+    // Searchable Branch Selector (dependent on bank)
+    if (key === 'chi_nhanh') {
+      const selectedBank = data['ngan_hang'];
+      const branches = selectedBank ? getBranchesByBank(allBankData, selectedBank) : [];
+      const filteredBranches = branches.filter(b => 
+        b.toLowerCase().includes(branchQuery.toLowerCase())
+      );
+
+      return (
+        <div key={key} ref={branchRef}>
+          <label className={labelCls}>{field.label} <span className="text-red-400">*</span></label>
+          <div className="relative">
+            <input
+              type="text"
+              value={branchQuery}
+              disabled={!selectedBank}
+              onChange={(e) => {
+                setBranchQuery(e.target.value);
+                setIsBranchOpen(true);
+                if (data[key]) handleChange(key, '');
+              }}
+              onFocus={() => setIsBranchOpen(true)}
+              onBlur={() => setTimeout(() => onFieldBlur(key), 200)}
+              placeholder={!selectedBank ? 'Vui lòng chọn ngân hàng trước' : (field.placeholder || 'Tìm chi nhánh...')}
+              className={`${inputCls} pr-8 ${!selectedBank ? 'bg-slate-50 cursor-not-allowed opacity-60' : ''}`}
+            />
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+              <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isBranchOpen ? 'rotate-180' : ''}`} />
+            </div>
+
+            {isBranchOpen && selectedBank && (
+              <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto animate-fadeIn">
+                {filteredBranches.length > 0 ? (
+                  filteredBranches.map(b => (
+                    <div
+                      key={b}
+                      className="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 text-slate-700 border-b border-slate-50 last:border-0"
+                      onClick={() => {
+                        onFieldChange(key, b);
+                        setBranchQuery(b);
+                        setIsBranchOpen(false);
+                      }}
+                    >
+                      <div className="font-medium">{b}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-3 py-3 text-sm text-slate-400 text-center">Không tìm thấy chi nhánh</div>
                 )}
               </div>
             )}

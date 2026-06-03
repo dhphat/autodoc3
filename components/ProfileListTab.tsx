@@ -1,6 +1,6 @@
 
 import React, { useRef, useState } from 'react';
-import { Search, UserCircle, Eye, Upload, Image as ImageIcon, PlusCircle } from 'lucide-react';
+import { Search, UserCircle, Eye, Upload, Image as ImageIcon, PlusCircle, RefreshCw } from 'lucide-react';
 import { SavedProfile } from '../types';
 import { uploadImage, updateProfile } from '../services/supabaseService';
 import ImagePreviewModal from './ImagePreviewModal';
@@ -10,9 +10,10 @@ interface ProfileListTabProps {
   onEdit: (profile: SavedProfile) => void;
   onProfileUpdated: (profile: SavedProfile) => void;
   onCreateNew: () => void;
+  onShowConverter: () => void;
 }
 
-const ProfileListTab: React.FC<ProfileListTabProps> = ({ profiles, onEdit, onProfileUpdated, onCreateNew }) => {
+const ProfileListTab: React.FC<ProfileListTabProps> = ({ profiles, onEdit, onProfileUpdated, onCreateNew, onShowConverter }) => {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
@@ -100,6 +101,10 @@ const ProfileListTab: React.FC<ProfileListTabProps> = ({ profiles, onEdit, onPro
               <input type="text" placeholder="Tìm tên, CCCD, SĐT, MST..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full sm:w-64 pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
             </div>
+            <button onClick={onShowConverter}
+              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-900 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors shadow-sm whitespace-nowrap">
+              <RefreshCw className="w-4 h-4" /> Chuẩn hóa ngân hàng
+            </button>
             <button onClick={onCreateNew}
               className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors shadow-sm whitespace-nowrap">
               <PlusCircle className="w-4 h-4" /> Tạo mới

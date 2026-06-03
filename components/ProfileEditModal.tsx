@@ -4,6 +4,7 @@ import { X, Save, User, UserPlus, Image as ImageIcon, Loader2, Upload, Eye, Tras
 import { SavedProfile, DocField } from '../types';
 import { validateField } from '../utils/validation';
 import { uploadImage, saveProfile } from '../services/supabaseService';
+import { BankData, getBranchesByBank, getUniqueBanks } from '../services/bankService';
 import InputField from './InputField';
 import ImagePreviewModal from './ImagePreviewModal';
 
@@ -12,6 +13,7 @@ interface ProfileEditModalProps {
   onClose: () => void;
   profile: SavedProfile | null; // null = create mode
   fieldDefinitions: DocField[];
+  bankData: BankData[];
   onSave: (updatedProfile: SavedProfile) => Promise<void>;
   onCreate?: (newProfile: SavedProfile) => void;
   onDelete?: (profileId: string) => Promise<void>;
@@ -20,14 +22,19 @@ interface ProfileEditModalProps {
 const genAbbr = (name: string) => name.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase()).join('');
 
 const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ 
-  isOpen, onClose, profile, fieldDefinitions, onSave, onCreate, onDelete
+  isOpen, onClose, profile, fieldDefinitions, bankData, onSave, onCreate, onDelete
 }) => {
   const [data, setData] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [banks, setBanks] = useState<{ shortName: string; name: string }[]>([]);
+  
   const [bankQuery, setBankQuery] = useState('');
   const [isBankOpen, setIsBankOpen] = useState(false);
   const bankRef = useRef<HTMLDivElement>(null);
+
+  const [branchQuery, setBranchQuery] = useState('');
+  const [isBranchOpen, setIsBranchOpen] = useState(false);
+  const branchRef = useRef<HTMLDivElement>(null);
+
   const [imgFrontUrl, setImgFrontUrl] = useState<string | null>(null);
   const [imgBackUrl, setImgBackUrl] = useState<string | null>(null);
   const [imgPortraitUrl, setImgPortraitUrl] = useState<string | null>(null);
@@ -67,30 +74,20 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
     }
   }, [isOpen, profile, fieldDefinitions]);
 
-  // Load banks
+  // Sync bank and branch search query with selection
   useEffect(() => {
-    fetch('https://api.vietqr.io/v2/banks')
-      .then(res => res.json())
-      .then(d => { if (d?.data) setBanks(d.data.map((b: any) => ({ shortName: b.shortName, name: b.name }))); })
-      .catch(console.error);
-  }, []);
+    setBankQuery(data['ngan_hang'] || '');
+    setBranchQuery(data['chi_nhanh'] || '');
+  }, [data['ngan_hang'], data['chi_nhanh'], isOpen]);
 
-  // Sync bank search query with selection
-  useEffect(() => {
-    const selectedBank = data['ngan_hang'];
-    if (selectedBank) {
-      const match = banks.find(b => `${b.name} (${b.shortName})` === selectedBank);
-      if (match) setBankQuery(`${match.shortName} - ${match.name}`);
-    } else {
-      setBankQuery('');
-    }
-  }, [data['ngan_hang'], banks]);
-
-  // Click outside to close bank dropdown
+  // Click outside to close bank/branch dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (bankRef.current && !bankRef.current.contains(event.target as Node)) {
         setIsBankOpen(false);
+      }
+      if (branchRef.current && !branchRef.current.contains(event.target as Node)) {
+        setIsBranchOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -301,18 +298,16 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
   };
 
   const renderField = (field: DocField) => {
-    // Special handling for Bank selection to allow search
+    // Special handling for Bank selection
     if (field.key === 'ngan_hang') {
-      const filteredBanks = banks.filter(b => 
-        b.shortName.toLowerCase().includes(bankQuery.toLowerCase()) || 
-        b.name.toLowerCase().includes(bankQuery.toLowerCase())
-      );
+      const uniqueBanks = getUniqueBanks(bankData);
+      const filteredBanks = uniqueBanks.filter(b => b.toLowerCase().includes(bankQuery.toLowerCase()));
       const errorMsg = errors[field.key];
 
       return (
         <div key={field.key} className="flex flex-col gap-1.5" ref={bankRef}>
           <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            {field.label} <span className="text-red-400">*</span> <span className="text-slate-400 font-normal normal-case opacity-70">{"{"}{field.key}{"}"}</span>
+            {field.label} <span className="text-red-400">*</span>
           </label>
           <div className="relative">
             <input
@@ -321,41 +316,77 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
               onChange={(e) => {
                 setBankQuery(e.target.value);
                 setIsBankOpen(true);
-                if (data[field.key]) handleFieldChange(field.key, '');
+                if (data[field.key]) {
+                  handleFieldChange(field.key, '');
+                  handleFieldChange('chi_nhanh', '');
+                }
               }}
               onFocus={() => setIsBankOpen(true)}
               onBlur={() => onFieldBlur(field.key)}
-              placeholder={field.placeholder || "Tìm kiếm ngân hàng..."}
-              className={`w-full border ${errorMsg ? 'border-red-500 bg-red-50' : 'border-slate-300 bg-slate-50'} rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all pr-8`}
+              placeholder="Tìm ngân hàng..."
+              className={`w-full border ${errorMsg ? 'border-red-500 bg-red-50' : 'border-slate-300 bg-slate-50'} rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none pr-8`}
             />
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-              <ChevronDown className={`w-4 h-4 transition-transform ${isBankOpen ? 'rotate-180' : ''}`} />
+            <div className={`absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 transition-transform ${isBankOpen ? 'rotate-180' : ''}`}>
+              <ChevronDown className="w-4 h-4" />
             </div>
             {isBankOpen && (
-              <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto animate-fadeIn">
-                {filteredBanks.length > 0 ? (
-                  filteredBanks.map(b => (
-                    <div
-                      key={b.shortName}
-                      className="px-3 py-2 text-xs cursor-pointer hover:bg-blue-50 text-slate-700 border-b border-slate-50 last:border-0"
-                      onClick={() => {
-                        const val = `${b.name} (${b.shortName})`;
-                        handleFieldChange(field.key, val);
-                        setBankQuery(`${b.shortName} - ${b.name}`);
-                        setIsBankOpen(false);
-                      }}
-                    >
-                      <div className="font-bold text-blue-700">{b.shortName}</div>
-                      <div className="text-[10px] text-slate-500 truncate">{b.name}</div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="px-3 py-2 text-xs text-slate-400 italic">Không tìm thấy</div>
-                )}
+              <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                {filteredBanks.map(b => (
+                  <div key={b} className="px-3 py-2 text-xs cursor-pointer hover:bg-blue-50 text-slate-700 border-b border-slate-50 last:border-0"
+                    onClick={() => { handleFieldChange(field.key, b); setBankQuery(b); setIsBankOpen(false); }}>
+                    {b}
+                  </div>
+                ))}
               </div>
             )}
           </div>
-          {errorMsg && <span className="text-xs text-red-500 italic animate-fadeIn">{errorMsg}</span>}
+          {errorMsg && <span className="text-xs text-red-500 italic">{errorMsg}</span>}
+        </div>
+      );
+    }
+
+    // Special handling for Branch selection
+    if (field.key === 'chi_nhanh') {
+      const selectedBank = data['ngan_hang'];
+      const branches = selectedBank ? getBranchesByBank(bankData, selectedBank) : [];
+      const filteredBranches = branches.filter(b => b.toLowerCase().includes(branchQuery.toLowerCase()));
+      const errorMsg = errors[field.key];
+
+      return (
+        <div key={field.key} className="flex flex-col gap-1.5" ref={branchRef}>
+          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            {field.label} <span className="text-red-400">*</span>
+          </label>
+          <div className="relative">
+            <input
+              type="text"
+              value={branchQuery}
+              disabled={!selectedBank}
+              onChange={(e) => {
+                setBranchQuery(e.target.value);
+                setIsBranchOpen(true);
+                if (data[field.key]) handleFieldChange(field.key, '');
+              }}
+              onFocus={() => setIsBranchOpen(true)}
+              onBlur={() => onFieldBlur(field.key)}
+              placeholder={selectedBank ? "Tìm chi nhánh..." : "Chọn ngân hàng trước"}
+              className={`w-full border ${errorMsg ? 'border-red-500 bg-red-50' : 'border-slate-300 bg-slate-50'} rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none pr-8 ${!selectedBank ? 'opacity-50 cursor-not-allowed' : ''}`}
+            />
+            <div className={`absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 transition-transform ${isBranchOpen ? 'rotate-180' : ''}`}>
+              <ChevronDown className="w-4 h-4" />
+            </div>
+            {isBranchOpen && selectedBank && (
+              <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                {filteredBranches.map(b => (
+                  <div key={b} className="px-3 py-2 text-xs cursor-pointer hover:bg-blue-50 text-slate-700 border-b border-slate-50 last:border-0"
+                    onClick={() => { handleFieldChange(field.key, b); setBranchQuery(b); setIsBranchOpen(false); }}>
+                    {b}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          {errorMsg && <span className="text-xs text-red-500 italic">{errorMsg}</span>}
         </div>
       );
     }

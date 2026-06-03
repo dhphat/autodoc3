@@ -9,8 +9,10 @@ import ContractsTab from './components/ContractsTab';
 import AcceptanceTab from './components/AcceptanceTab';
 import LoginPage from './components/LoginPage';
 import GuestFormPage from './components/GuestFormPage';
+import BankDataConverter from './components/BankDataConverter';
 import { DocField, DEFAULT_FIELDS, SavedProfile } from './types';
 import { getProfiles, updateProfile, deleteProfile } from './services/supabaseService';
+import { BankData, loadBankData, getUniqueBanks } from './services/bankService';
 import type { User } from '@supabase/supabase-js';
 
 type Tab = 'profiles' | 'contracts' | 'acceptance';
@@ -63,9 +65,10 @@ const MainApp: React.FC<{ user: User }> = ({ user }) => {
 
   // UI
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [showConverter, setShowConverter] = useState(false);
 
   // Banks
-  const [banks, setBanks] = useState<{ shortName: string; name: string }[]>([]);
+  const [bankData, setBankData] = useState<BankData[]>([]);
   const [fields, setFields] = useState<DocField[]>(DEFAULT_FIELDS);
 
   const loadProfiles = useCallback(async () => {
@@ -77,23 +80,20 @@ const MainApp: React.FC<{ user: User }> = ({ user }) => {
 
   useEffect(() => {
     loadProfiles();
-    fetch('https://api.vietqr.io/v2/banks')
-      .then(res => res.json())
-      .then(data => {
-        if (data?.data) setBanks(data.data.map((b: any) => ({ shortName: b.shortName, name: b.name })));
-      }).catch(console.error);
+    loadBankData().then(setBankData);
   }, [loadProfiles]);
 
   useEffect(() => {
-    if (banks.length > 0) {
+    if (bankData.length > 0) {
+      const uniqueBanks = getUniqueBanks(bankData);
       setFields(prev => prev.map(f => {
         if (f.key === 'ngan_hang') {
-          return { ...f, options: banks.map(b => ({ label: `${b.shortName} - ${b.name}`, value: `${b.name} (${b.shortName})` })) };
+          return { ...f, options: uniqueBanks.map(b => ({ label: b, value: b })) };
         }
         return f;
       }));
     }
-  }, [banks]);
+  }, [bankData]);
 
   // Open profile modal for editing
   const openEditProfile = (profile: SavedProfile) => {
@@ -150,10 +150,19 @@ const MainApp: React.FC<{ user: User }> = ({ user }) => {
         isOpen={showProfileModal}
         profile={editingProfile}
         fieldDefinitions={fields}
+        bankData={bankData}
         onClose={closeProfileModal}
         onSave={handleUpdateProfile}
         onCreate={handleCreateProfile}
         onDelete={handleDeleteProfile}
+      />
+
+      <BankDataConverter
+        isOpen={showConverter}
+        onClose={() => setShowConverter(false)}
+        profiles={savedProfiles}
+        bankData={bankData}
+        onProfilesUpdated={loadProfiles}
       />
 
       <header className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
@@ -209,6 +218,7 @@ const MainApp: React.FC<{ user: User }> = ({ user }) => {
               onEdit={openEditProfile}
               onProfileUpdated={handleProfileUpdatedFromList}
               onCreateNew={openCreateProfile}
+              onShowConverter={() => setShowConverter(true)}
             />
           </div>
         )}
