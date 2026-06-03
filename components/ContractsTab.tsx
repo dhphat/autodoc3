@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { PlusCircle, Download, Trash2, Search, FileText, Upload, Loader2, Edit2, ChevronDown, ChevronUp, Tag, Filter, ArrowUpDown, Settings } from 'lucide-react';
 import { Contract, SavedProfile } from '../types';
 import { getContracts, deleteContract, uploadDefaultTemplate, downloadDefaultTemplate } from '../services/supabaseService';
+import { generateContractPaymentExcel, generateContractTransferExcel } from '../services/excelService';
 import ContractModal from './ContractModal';
 
 interface ContractsTabProps {
@@ -26,6 +27,8 @@ const ContractsTab: React.FC<ContractsTabProps> = ({ profiles }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterProject, setFilterProject] = useState<string>('');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Modal
   const [modalOpen, setModalOpen] = useState(false);
@@ -89,6 +92,29 @@ const ContractsTab: React.FC<ContractsTabProps> = ({ profiles }) => {
 
   const openCreate = () => { setEditingContract(null); setModalOpen(true); };
   const openEdit = (c: Contract) => { setEditingContract(c); setModalOpen(true); };
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredContracts.length) setSelectedIds([]);
+    else setSelectedIds(filteredContracts.map(c => c.id));
+  };
+
+  const handleBulkExport = async () => {
+    if (selectedIds.length === 0) return;
+    setIsExporting(true);
+    try {
+      const selectedContracts = contracts.filter(c => selectedIds.includes(c.id));
+      await generateContractPaymentExcel(selectedContracts);
+      await generateContractTransferExcel(selectedContracts);
+    } catch (err: any) {
+      alert('Lỗi xuất file: ' + err.message);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // Derived data
   const existingProjects = useMemo(() => {
@@ -203,11 +229,39 @@ const ContractsTab: React.FC<ContractsTabProps> = ({ profiles }) => {
           </div>
         </div>
 
+        {/* Bulk Actions Bar */}
+        {selectedIds.length > 0 && (
+          <div className="bg-blue-50 px-5 py-3 border-b border-blue-100 flex items-center justify-between animate-fadeIn">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-blue-700">Đã chọn <span className="font-bold">{selectedIds.length}</span> hợp đồng</span>
+              <button onClick={() => setSelectedIds([])} className="text-xs text-blue-600 hover:underline">Bỏ chọn</button>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleBulkExport}
+                disabled={isExporting}
+                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white text-xs font-medium px-4 py-2 rounded-lg transition-colors shadow-sm"
+              >
+                {isExporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                {isExporting ? 'Đang xuất...' : 'Xuất Excel Thanh toán & CK'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[850px]">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="py-3 px-4 w-10">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                    checked={filteredContracts.length > 0 && selectedIds.length === filteredContracts.length}
+                    onChange={toggleSelectAll}
+                  />
+                </th>
                 <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Tên</th>
                 <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Dự án</th>
                 <th className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Thời gian</th>
@@ -222,11 +276,19 @@ const ContractsTab: React.FC<ContractsTabProps> = ({ profiles }) => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
-                <tr><td colSpan={10} className="py-12 text-center text-slate-400"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Đang tải...</td></tr>
+                <tr><td colSpan={11} className="py-12 text-center text-slate-400"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />Đang tải...</td></tr>
               ) : filteredContracts.length === 0 ? (
-                <tr><td colSpan={10} className="py-12 text-center text-slate-400"><FileText className="w-10 h-10 mx-auto mb-2 opacity-40" /><p>{contracts.length === 0 ? 'Chưa có hợp đồng nào.' : 'Không tìm thấy kết quả.'}</p></td></tr>
+                <tr><td colSpan={11} className="py-12 text-center text-slate-400"><FileText className="w-10 h-10 mx-auto mb-2 opacity-40" /><p>{contracts.length === 0 ? 'Chưa có hợp đồng nào.' : 'Không tìm thấy kết quả.'}</p></td></tr>
               ) : filteredContracts.map((c) => (
-                <tr key={c.id} className="hover:bg-blue-50/30 transition-colors cursor-pointer group" onClick={() => openEdit(c)}>
+                <tr key={c.id} className={`hover:bg-blue-50/30 transition-colors cursor-pointer group ${selectedIds.includes(c.id) ? 'bg-blue-50/50' : ''}`} onClick={() => openEdit(c)}>
+                  <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                      checked={selectedIds.includes(c.id)}
+                      onChange={() => toggleSelection(c.id)}
+                    />
+                  </td>
                   <td className="py-3 px-4">
                     <div className="font-medium text-sm text-slate-900">{c.profile_name}</div>
                     <div className="text-[10px] text-slate-400">{new Date(c.created_at).toLocaleDateString('vi-VN')}</div>

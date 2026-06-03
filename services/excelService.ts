@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
-import { AcceptanceReportData, AcceptancePersonEntry, SavedProfile } from '../types';
+import { AcceptanceReportData, AcceptancePersonEntry, SavedProfile, Contract } from '../types';
 
 const FONT_NAME = 'Times New Roman';
 
@@ -307,6 +307,11 @@ const formatDateDDMMYYYY = (dateStr: string): string => {
   return dateStr.replace(/\D/g, '');
 };
 
+const parseFormattedMoney = (val: string): number => {
+  if (!val) return 0;
+  return parseFloat(val.toString().replace(/[.\s]/g, '')) || 0;
+};
+
 const sanitizeFileName = (name: string): string => name.replace(/[/\\?%*:|"<>]/g, '_');
 
 // ===================== Payment Excel (Thông tin thanh toán) =====================
@@ -404,3 +409,99 @@ export const generateTransferExcel = async (
   });
   saveAs(blob, `ChuyenKhoan_${sanitizeFileName(soBienBan)}.xlsx`);
 };
+
+// ===================== Contract-Based Exports =====================
+
+export const generateContractPaymentExcel = async (
+  contracts: Contract[],
+): Promise<void> => {
+  const response = await fetch(encodeURI('/Mẫu upload thông tin thanh toán.xlsx'));
+  if (!response.ok) throw new Error('Không tải được mẫu thanh toán');
+  const arrayBuffer = await response.arrayBuffer();
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(arrayBuffer);
+
+  const ws = workbook.getWorksheet('TNCN');
+  if (!ws) throw new Error('Sheet TNCN not found in template');
+
+  const now = new Date();
+  const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
+
+  contracts.forEach((contract, idx) => {
+    const rowIndex = 6 + idx;
+    const row = ws.getRow(rowIndex);
+    const data = contract.profile_data || {};
+
+    const thanhTien = parseFormattedMoney(contract.thanh_tien);
+    const thucNhan = parseFormattedMoney(contract.thuc_nhan);
+    const thue = Math.max(0, thanhTien - thucNhan);
+
+    row.getCell(1).value = idx + 1;                                    // STT
+    row.getCell(3).value = currentMonth;                               // Từ
+    row.getCell(4).value = currentMonth;                               // Đến ngày
+    row.getCell(5).value = data['cccd'] || '';                         // CMND/CCCD
+    row.getCell(6).value = data['ho_ten'] || '';                       // Họ và tên
+    row.getCell(7).value = formatDateDDMMYYYY(data['ngay_sinh'] || ''); // Ngày sinh
+    row.getCell(9).value = 'Khoản thu nhập từ tiền công, tiền lương'; // Khoản thu nhập
+    row.getCell(10).value = 'VND';                                    // Loại tiền
+    row.getCell(11).value = 1;                                        // Tỷ giá
+    row.getCell(12).value = thanhTien;                                // Tổng tiền tính thuế TNCN nguyên tệ
+    row.getCell(13).value = thue;                                     // Tiền thuế TNCN nguyên tệ
+    row.getCell(16).value = 'Việt Nam';                               // Quốc tịch
+    row.getCell(17).value = 'Y';                                      // Cá nhân lưu trú?
+    row.getCell(18).value = data['dia_chi'] || '';                    // Địa chỉ
+    row.getCell(19).value = data['dien_thoai'] || '';                 // Số điện thoại
+    row.getCell(20).value = data['email'] || '';                      // Email
+    row.getCell(21).value = 'Y';                                      // Có gửi mail không?
+
+    row.commit();
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  saveAs(blob, `DSHD_ThanhToan_${now.getTime()}.xlsx`);
+};
+
+export const generateContractTransferExcel = async (
+  contracts: Contract[],
+): Promise<void> => {
+  const response = await fetch(encodeURI('/Mẫu upload thông tin chuyển khoản.xlsx'));
+  if (!response.ok) throw new Error('Không tải được mẫu chuyển khoản');
+  const arrayBuffer = await response.arrayBuffer();
+
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(arrayBuffer);
+
+  const ws = workbook.getWorksheet('Transaction');
+  if (!ws) throw new Error('Sheet Transaction not found in template');
+
+  const now = new Date();
+
+  contracts.forEach((contract, idx) => {
+    const rowIndex = 2 + idx;
+    const row = ws.getRow(rowIndex);
+    const data = contract.profile_data || {};
+
+    const hoTenUpper = removeVietnameseDiacritics(data['ho_ten'] || '').toUpperCase();
+    const thucNhan = parseFormattedMoney(contract.thuc_nhan);
+
+    row.getCell(1).value = data['stk'] || '';        // Tài khoản số
+    row.getCell(2).value = hoTenUpper;                // Người hưởng lợi
+    row.getCell(3).value = data['ngan_hang'] || '';   // Tại ngân hàng
+    row.getCell(4).value = data['chi_nhanh'] || '';   // Chi nhánh
+    row.getCell(5).value = thucNhan;                  // Số tiền (Thực nhận)
+    row.getCell(6).value = 'VND';                     // Loại tiền
+
+    row.commit();
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  saveAs(blob, `DSHD_ChuyenKhoan_${now.getTime()}.xlsx`);
+};
+
