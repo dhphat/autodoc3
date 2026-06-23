@@ -285,6 +285,14 @@ export const generateAcceptanceExcel = async (data: AcceptanceReportData): Promi
 
 // ===================== Helper Functions =====================
 
+/** In hoa chữ cái đầu mỗi từ (Title Case), giữ nguyên dấu tiếng Việt */
+const toTitleCase = (str: string): string => {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .replace(/(^|\s)(\S)/g, (_, space, char) => space + char.toUpperCase());
+};
+
 /** Remove Vietnamese diacritics from a string */
 const removeVietnameseDiacritics = (str: string): string => {
   return str
@@ -344,9 +352,9 @@ export const generatePaymentExcel = async (
     row.getCell(3).value = currentMonth;                               // Từ
     row.getCell(4).value = currentMonth;                               // Đến ngày
     row.getCell(5).value = data['cccd'] || '';                         // CMND/CCCD
-    row.getCell(6).value = data['ho_ten'] || '';                       // Họ và tên
+    row.getCell(6).value = toTitleCase(data['ho_ten'] || '');          // Họ và tên
     row.getCell(7).value = formatDateDDMMYYYY(data['ngay_sinh'] || ''); // Ngày sinh
-    row.getCell(9).value = 'Khoản thu nhập từ tiền công, tiền lương'; // Khoản thu nhập
+    row.getCell(9).value = 'Thu nhập từ tiền lương, tiền công';        // Khoản thu nhập
     row.getCell(10).value = 'VND';                                    // Loại tiền
     row.getCell(11).value = 1;                                        // Tỷ giá
     row.getCell(12).value = entry?.so_tien_truoc_thue || 0;           // Tổng tiền tính thuế TNCN nguyên tệ
@@ -441,9 +449,9 @@ export const generateContractPaymentExcel = async (
     row.getCell(3).value = currentMonth;                               // Từ
     row.getCell(4).value = currentMonth;                               // Đến ngày
     row.getCell(5).value = data['cccd'] || '';                         // CMND/CCCD
-    row.getCell(6).value = data['ho_ten'] || '';                       // Họ và tên
+    row.getCell(6).value = toTitleCase(data['ho_ten'] || '');          // Họ và tên
     row.getCell(7).value = formatDateDDMMYYYY(data['ngay_sinh'] || ''); // Ngày sinh
-    row.getCell(9).value = 'Khoản thu nhập từ tiền công, tiền lương'; // Khoản thu nhập
+    row.getCell(9).value = 'Thu nhập từ tiền lương, tiền công';        // Khoản thu nhập
     row.getCell(10).value = 'VND';                                    // Loại tiền
     row.getCell(11).value = 1;                                        // Tỷ giá
     row.getCell(12).value = thanhTien;                                // Tổng tiền tính thuế TNCN nguyên tệ
