@@ -411,6 +411,31 @@ const GuestFormPage: React.FC = () => {
       );
     }
 
+    if (field.type === 'radio') {
+      const opts = field.options || [];
+      return (
+        <div key={key}>
+          <label className={labelCls}>{field.label} <span className="text-red-400">*</span></label>
+          <div className="flex flex-row items-center gap-6 mt-2">
+            {opts.map(o => (
+              <label key={o.value} className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name={key}
+                  value={o.value}
+                  checked={value === o.value}
+                  onChange={(e) => onFieldChange(key, e.target.value)}
+                  className="w-4 h-4 text-blue-600 bg-white border-slate-300 focus:ring-blue-500 focus:ring-2 cursor-pointer"
+                />
+                <span className="text-sm font-medium text-slate-700">{o.label}</span>
+              </label>
+            ))}
+          </div>
+          {renderError()}
+        </div>
+      );
+    }
+
     if (field.type === 'date') {
       return (
         <div key={key}>

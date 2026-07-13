@@ -37,7 +37,7 @@ export interface DocField {
   value: string;
   placeholder?: string;
   section?: 'General' | 'Party A' | 'Party B' | 'Financial' | 'Job' | 'Time' | 'Other';
-  type?: 'text' | 'number' | 'select' | 'date' | 'textarea';
+  type?: 'text' | 'number' | 'select' | 'radio' | 'date' | 'textarea';
   options?: { label: string; value: string }[];
   error?: string;
 }
@@ -122,10 +122,9 @@ export const DEFAULT_FIELDS: DocField[] = [
   { 
     key: 'vneid_level', 
     label: 'Định danh VNeID mức', 
-    value: '', 
+    value: '1', 
     section: 'Party B', 
-    placeholder: '-- Chọn mức VNeID --',
-    type: 'select',
+    type: 'radio',
     options: [
       { label: 'Mức 1', value: '1' },
       { label: 'Mức 2', value: '2' }
