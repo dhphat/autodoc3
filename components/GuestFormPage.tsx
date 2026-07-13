@@ -554,7 +554,7 @@ const GuestFormPage: React.FC = () => {
               <p className="text-blue-100 text-sm mt-1">Để phục vụ quá trình lập hồ sơ thanh toán, vui lòng điền đầy đủ thông tin bên dưới</p>
               {departmentName && (
                 <div className="mt-3 inline-block bg-blue-700/50 rounded-lg px-3 py-1.5 text-xs border border-blue-500/30">
-                  <span className="opacity-80">Gửi hồ sơ về:</span> <strong className="font-semibold">{departmentName}</strong>
+                  <strong className="font-semibold">{departmentName}</strong>
                 </div>
               )}
             </div>
