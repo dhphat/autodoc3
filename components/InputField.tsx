@@ -10,7 +10,7 @@ interface InputFieldProps {
   onBlur?: (key: string) => void;
   placeholder?: string;
   className?: string;
-  type?: 'text' | 'number' | 'select' | 'date' | 'textarea';
+  type?: 'text' | 'number' | 'select' | 'radio' | 'date' | 'textarea';
   options?: { label: string; value: string }[];
   error?: string;
   required?: boolean;
@@ -142,6 +142,27 @@ const InputField: React.FC<InputFieldProps> = ({
                 onBlur={() => onBlur?.(fieldKey)}
                 className={inputClass}
             />
+        );
+    }
+
+    if (type === 'radio') {
+        const opts = options || [];
+        return (
+            <div className="flex flex-row items-center gap-6 mt-1">
+                {opts.map(o => (
+                    <label key={o.value} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                            type="radio"
+                            name={fieldKey}
+                            value={o.value}
+                            checked={value === o.value}
+                            onChange={(e) => onChange(fieldKey, e.target.value)}
+                            className="w-4 h-4 text-blue-600 bg-white border-slate-300 focus:ring-blue-500 focus:ring-2 cursor-pointer"
+                        />
+                        <span className="text-sm font-medium text-slate-700">{o.label}</span>
+                    </label>
+                ))}
+            </div>
         );
     }
 
