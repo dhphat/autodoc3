@@ -1,9 +1,11 @@
 
 import React, { useRef, useState } from 'react';
-import { Search, UserCircle, Eye, Upload, Image as ImageIcon, PlusCircle, RefreshCw } from 'lucide-react';
+import { Search, UserCircle, Eye, Upload, Image as ImageIcon, PlusCircle, RefreshCw, Link as LinkIcon, Check } from 'lucide-react';
 import { SavedProfile } from '../types';
 import { uploadImage, updateProfile } from '../services/supabaseService';
 import ImagePreviewModal from './ImagePreviewModal';
+import { useUser } from '../contexts/UserContext';
+import { uuidToShortCode } from '../utils/stringUtils';
 
 interface ProfileListTabProps {
   profiles: SavedProfile[];
@@ -19,6 +21,8 @@ const ProfileListTab: React.FC<ProfileListTabProps> = ({ profiles, onEdit, onPro
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<{ profileId: string; type: 'front' | 'back' | 'portrait' } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const { departmentId, userProfile } = useUser();
 
   const filteredProfiles = profiles.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -101,11 +105,31 @@ const ProfileListTab: React.FC<ProfileListTabProps> = ({ profiles, onEdit, onPro
               <input type="text" placeholder="Tìm tên, CCCD, SĐT, MST..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full sm:w-64 pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
             </div>
-            <button onClick={onShowConverter}
-              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-900 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors shadow-sm whitespace-nowrap">
-              <RefreshCw className="w-4 h-4" /> Chuẩn hóa ngân hàng
+            <button onClick={onShowConverter} className="hidden sm:flex whitespace-nowrap items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-sm">
+              <RefreshCw className="w-4 h-4" />
+              <span>Chuẩn hóa ngân hàng</span>
             </button>
-            <button onClick={onCreateNew}
+            <button
+              onClick={() => {
+                if (!departmentId) {
+                  alert('Tài khoản của bạn chưa được phân công vào phòng ban nào!');
+                  return;
+                }
+                const deptCode = uuidToShortCode(departmentId);
+                const link = `${window.location.origin}/form?dept=${deptCode}`;
+                navigator.clipboard.writeText(link);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              }}
+              className={`flex whitespace-nowrap items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-sm ${
+                copied ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200'
+              }`}
+            >
+              {copied ? <Check className="w-4 h-4" /> : <LinkIcon className="w-4 h-4" />}
+              <span className="hidden sm:inline">{copied ? 'Đã copy link!' : 'Form Điền Thông Tin'}</span>
+            </button>
+            <button
+              onClick={onCreateNew}
               className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors shadow-sm whitespace-nowrap">
               <PlusCircle className="w-4 h-4" /> Tạo mới
             </button>

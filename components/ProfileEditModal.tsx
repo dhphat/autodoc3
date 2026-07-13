@@ -17,12 +17,13 @@ interface ProfileEditModalProps {
   onSave: (updatedProfile: SavedProfile) => Promise<void>;
   onCreate?: (newProfile: SavedProfile) => void;
   onDelete?: (profileId: string) => Promise<void>;
+  departmentId: string | null;
 }
 
 const genAbbr = (name: string) => name.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase()).join('');
 
 const ProfileEditModal: React.FC<ProfileEditModalProps> = ({ 
-  isOpen, onClose, profile, fieldDefinitions, bankData, onSave, onCreate, onDelete
+  isOpen, onClose, profile, fieldDefinitions, bankData, onSave, onCreate, onDelete, departmentId
 }) => {
   const [data, setData] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -191,7 +192,7 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
           id_card_portrait_url: null,
           vneid_2_photo_1_url: null,
           vneid_2_photo_2_url: null,
-        });
+        }, departmentId);
 
         let frontUrl = null, backUrl = null, portraitUrl = null;
         let vneid2_1Url = null, vneid2_2Url = null;

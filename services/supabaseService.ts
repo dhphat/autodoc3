@@ -82,7 +82,8 @@ export const getProfiles = async (): Promise<SavedProfile[]> => {
 };
 
 export const saveProfile = async (
-  profile: Omit<SavedProfile, 'id' | 'user_id' | 'created_at'>
+  profile: Omit<SavedProfile, 'id' | 'user_id' | 'created_at'>,
+  departmentId: string | null
 ): Promise<SavedProfile> => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
@@ -91,6 +92,7 @@ export const saveProfile = async (
     .from('profiles')
     .insert({
       user_id: user.id,
+      department_id: departmentId,
       name: profile.name,
       data: profile.data,
       id_card_front_url: profile.id_card_front_url || null,
@@ -169,14 +171,15 @@ export const getContracts = async (): Promise<Contract[]> => {
 };
 
 export const createContract = async (
-  contract: Omit<Contract, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'profile_name' | 'profile_data'>
+  contract: Omit<Contract, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'profile_name' | 'profile_data'>,
+  departmentId: string | null
 ): Promise<Contract> => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
   const { data, error } = await supabase
     .from('contracts')
-    .insert({ ...contract, user_id: user.id })
+    .insert({ ...contract, user_id: user.id, department_id: departmentId })
     .select('*, profiles(name, data)')
     .single();
 
@@ -211,24 +214,49 @@ export const deleteContract = async (id: string): Promise<void> => {
 
 // ======================== TEMPLATES ========================
 
-export const uploadDefaultTemplate = async (file: File, type: 'contract' | 'acceptance'): Promise<void> => {
-  const path = `defaults/${type}.docx`;
+export const uploadDefaultTemplate = async (
+  file: File,
+  type: 'contract' | 'acceptance',
+  departmentId?: string | null
+): Promise<void> => {
+  // Use department-specific path if departmentId provided, otherwise fall back to global default
+  const path = departmentId ? `departments/${departmentId}/${type}.docx` : `defaults/${type}.docx`;
   const { error } = await supabase.storage
     .from('templates')
     .upload(path, file, { upsert: true });
   if (error) throw error;
 };
 
-export const downloadDefaultTemplate = async (type: 'contract' | 'acceptance'): Promise<File | null> => {
-  const path = `defaults/${type}.docx`;
-  const { data, error } = await supabase.storage
-    .from('templates')
-    .download(path);
+export const downloadDefaultTemplate = async (
+  type: 'contract' | 'acceptance',
+  departmentId?: string | null
+): Promise<File | null> => {
+  // Try department-specific template first, then fall back to global default
+  const paths = departmentId
+    ? [`departments/${departmentId}/${type}.docx`, `defaults/${type}.docx`]
+    : [`defaults/${type}.docx`];
 
-  if (error) {
-    if (error.message?.includes('not found') || error.message?.includes('Object not found')) return null;
-    throw error;
+  for (const path of paths) {
+    try {
+      const { data, error } = await supabase.storage
+        .from('templates')
+        .download(path);
+
+      // If successful, return the file
+      if (!error && data) {
+        return new File(
+          [data],
+          `${type}.docx`,
+          { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }
+        );
+      }
+      // Any error (400, 404, etc.) → file doesn't exist at this path → try next
+    } catch {
+      // Network or unexpected error → try next path
+    }
   }
 
-  return new File([data], `${type}.docx`, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+  // No template found at any path → return null (UI will show "upload template" prompt)
+  return null;
 };
+

@@ -5,6 +5,7 @@ import { supabase } from '../services/supabaseClient';
 import { DEFAULT_FIELDS, DocField } from '../types';
 import { validateField } from '../utils/validation';
 import { BankData, loadBankData, getUniqueBanks, getBranchesByBank } from '../services/bankService';
+import { slugify, uuidToShortCode } from '../utils/stringUtils';
 
 // Compress image before upload
 const compressImage = (file: File, maxWidth = 600, quality = 0.6): Promise<Blob> => {
@@ -59,7 +60,37 @@ const GuestFormPage: React.FC = () => {
   const vneid2_1Ref = useRef<HTMLInputElement>(null);
   const vneid2_2Ref = useRef<HTMLInputElement>(null);
 
-  const vneidLevel = data['vneid_level'] || '1';
+  const vneidLevel = data['vneid_level'] || '';
+  
+  // Lấy department_id từ URL và load tên phòng ban
+  const [departmentId, setDepartmentId] = useState<string | null>(null);
+  const [departmentName, setDepartmentName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const dept = params.get('dept');
+    if (dept) {
+      // Fetch all departments to resolve slug or UUID
+      supabase.from('departments').select('id, name, campus:campuses(name)').then(({ data }) => {
+        if (data) {
+          const isUuid = dept.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+          const matchedDept = data.find((d: any) => {
+            if (isUuid) return d.id === dept;
+            if (dept.length === 3 && uuidToShortCode(d.id) === dept) return true;
+            const campusName = d.campus?.name || '';
+            const slug = slugify(campusName ? `${d.name}-${campusName}` : d.name);
+            return slug === dept;
+          });
+
+          if (matchedDept) {
+            setDepartmentId(matchedDept.id);
+            const campusName = (matchedDept.campus as any)?.name;
+            setDepartmentName(campusName ? `${matchedDept.name}, ${campusName}` : matchedDept.name);
+          }
+        }
+      });
+    }
+  }, []);
 
   // Profile fields (Party B section) without ten_viet_tat
   const profileFields = DEFAULT_FIELDS
@@ -199,6 +230,7 @@ const GuestFormPage: React.FC = () => {
       const { error: insertError } = await supabase.from('profiles').insert({
         name: hoTen,
         data: finalData,
+        department_id: departmentId, // Bắt buộc phải có để qua RLS Policy
         id_card_front_url: frontUrl,
         id_card_back_url: backUrl,
         id_card_portrait_url: portraitUrl,
@@ -367,10 +399,10 @@ const GuestFormPage: React.FC = () => {
               value={value} 
               onChange={(e) => onFieldChange(key, e.target.value)} 
               onBlur={() => onFieldBlur(key)}
-              className={`${inputCls} appearance-none pr-8`}
+              className={`${inputCls.replace('text-slate-900', '')} appearance-none pr-8 ${!value ? 'text-slate-400' : 'text-slate-900'}`}
             >
-              <option value="">{field.placeholder || `Chọn ${field.label}`}</option>
-              {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              <option value="" disabled hidden>{field.placeholder || `Chọn ${field.label}`}</option>
+              {opts.map(o => <option key={o.value} value={o.value} className="text-slate-900">{o.label}</option>)}
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           </div>
@@ -491,9 +523,19 @@ const GuestFormPage: React.FC = () => {
       <div className="max-w-3xl mx-auto px-4 py-8">
         <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
           {/* Form Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-6 text-white">
-            <h2 className="text-xl font-bold">Nhập thông tin cá nhân</h2>
-            <p className="text-blue-200 text-sm mt-1">Để phục vụ quá trình lập hồ sơ thanh toán, vui lòng điền đầy đủ thông tin bên dưới</p>
+          <div className="bg-blue-600 px-8 py-8 text-white relative overflow-hidden">
+            <div className="relative z-10">
+              <h2 className="text-xl font-bold">Nhập thông tin cá nhân</h2>
+              <p className="text-blue-100 text-sm mt-1">Để phục vụ quá trình lập hồ sơ thanh toán, vui lòng điền đầy đủ thông tin bên dưới</p>
+              {departmentName && (
+                <div className="mt-3 inline-block bg-blue-700/50 rounded-lg px-3 py-1.5 text-xs border border-blue-500/30">
+                  <span className="opacity-80">Gửi hồ sơ về:</span> <strong className="font-semibold">{departmentName}</strong>
+                </div>
+              )}
+            </div>
+            <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 opacity-10 pointer-events-none">
+              <FileText className="w-64 h-64" />
+            </div>
           </div>
 
           <form onSubmit={handleSubmit} className="p-8 space-y-6">

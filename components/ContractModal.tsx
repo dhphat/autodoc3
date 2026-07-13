@@ -4,6 +4,7 @@ import { Contract, SavedProfile } from '../types';
 import { createContract, updateContract } from '../services/supabaseService';
 import { generateDocument } from '../services/docxService';
 import { numberToVietnameseText } from '../utils/numberToText';
+import { useUser } from '../contexts/UserContext';
 
 interface ContractModalProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ const ContractModal: React.FC<ContractModalProps> = ({
   isOpen, onClose, contract, profiles, existingProjects,
   defaultContractTemplate, defaultAcceptanceTemplate, onSaved,
 }) => {
+  const { departmentId } = useUser();
   const [form, setForm] = useState(emptyForm);
   const [useCustomTemplate, setUseCustomTemplate] = useState(false);
   const [customContractFile, setCustomContractFile] = useState<File | null>(null);
@@ -117,7 +119,7 @@ const ContractModal: React.FC<ContractModalProps> = ({
         const profile = profiles.find(p => p.id === form.profile_id);
         onSaved({ ...contract, ...form, profile_name: profile?.name || contract.profile_name, profile_data: profile?.data || contract.profile_data }, false);
       } else {
-        const created = await createContract(form);
+        const created = await createContract(form, departmentId);
         onSaved(created, true);
       }
       onClose();

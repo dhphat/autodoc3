@@ -1,4 +1,36 @@
 
+// ======================== MULTI-TENANT TYPES ========================
+
+export interface Campus {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface Department {
+  id: string;
+  campus_id: string | null;
+  name: string;
+  created_at: string;
+  campus?: Campus;
+}
+
+export interface UserProfile {
+  id: string;
+  email?: string;
+  full_name: string;
+  account_name: string | null;
+  department_id: string | null;
+  role: 'admin' | 'user';
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  // Joined fields
+  department?: Department;
+}
+
+// ======================== ORIGINAL TYPES ========================
+
 export interface DocField {
   key: string;
   label: string;
@@ -90,9 +122,9 @@ export const DEFAULT_FIELDS: DocField[] = [
   { 
     key: 'vneid_level', 
     label: 'Định danh VNeID mức', 
-    value: '1', 
+    value: '', 
     section: 'Party B', 
-    placeholder: 'Chọn mức định danh',
+    placeholder: '-- Chọn mức VNeID --',
     type: 'select',
     options: [
       { label: 'Mức 1', value: '1' },
