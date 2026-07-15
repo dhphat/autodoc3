@@ -70,10 +70,14 @@ const GuestFormPage: React.FC = () => {
     const params = new URLSearchParams(window.location.search);
     const dept = params.get('dept');
     if (dept) {
+      const isUuid = dept.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+      if (isUuid) {
+        setDepartmentId(dept);
+      }
+
       // Fetch all departments to resolve slug or UUID
       supabase.from('departments').select('id, name, campus:campuses(name)').then(({ data }) => {
-        if (data) {
-          const isUuid = dept.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+        if (data && data.length > 0) {
           const matchedDept = data.find((d: any) => {
             if (isUuid) return d.id === dept;
             if (dept.length === 3 && uuidToShortCode(d.id) === dept) return true;
@@ -88,6 +92,8 @@ const GuestFormPage: React.FC = () => {
             setDepartmentName(campusName ? `${matchedDept.name}, ${campusName}` : matchedDept.name);
           }
         }
+      }).catch(err => {
+        console.warn('Could not fetch departments for name resolution', err);
       });
     }
   }, []);
@@ -189,6 +195,12 @@ const GuestFormPage: React.FC = () => {
       // Scroll to first error
       const firstError = document.querySelector('.border-red-400');
       firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
+    if (!departmentId) {
+      setError('Lỗi: Link truy cập không hợp lệ do thiếu mã phòng ban. Vui lòng xin lại đường link chính xác từ cán bộ phụ trách để gửi thông tin.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 

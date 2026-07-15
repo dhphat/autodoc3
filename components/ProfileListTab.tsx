@@ -115,8 +115,7 @@ const ProfileListTab: React.FC<ProfileListTabProps> = ({ profiles, onEdit, onPro
                   alert('Tài khoản của bạn chưa được phân công vào phòng ban nào!');
                   return;
                 }
-                const deptCode = uuidToShortCode(departmentId);
-                const link = `${window.location.origin}/form?dept=${deptCode}`;
+                const link = `${window.location.origin}/form?dept=${departmentId}`;
                 navigator.clipboard.writeText(link);
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);

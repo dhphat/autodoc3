@@ -131,7 +131,18 @@ export const DEFAULT_FIELDS: DocField[] = [
     ]
   },
   { key: 'ngay_cap', label: 'Ngày cấp', value: '', section: 'Party B', placeholder: 'Ngày cấp CCCD', type: 'date' },
-  { key: 'noi_cap', label: 'Nơi cấp', value: '', section: 'Party B', placeholder: 'Nơi cấp CCCD' },
+  { 
+    key: 'noi_cap', 
+    label: 'Nơi cấp', 
+    value: '', 
+    section: 'Party B', 
+    placeholder: 'Chọn nơi cấp CCCD',
+    type: 'select',
+    options: [
+      { label: 'Cục Cảnh sát Quản lý hành chính về Trật tự xã hội', value: 'Cục Cảnh sát Quản lý hành chính về Trật tự xã hội' },
+      { label: 'Bộ Công an', value: 'Bộ Công an' }
+    ]
+  },
 
   // Payment Info
   { key: 'stk', label: 'STK', value: '', section: 'Party B', placeholder: 'Số tài khoản ngân hàng' },
