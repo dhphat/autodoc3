@@ -76,25 +76,28 @@ const GuestFormPage: React.FC = () => {
       }
 
       // Fetch all departments to resolve slug or UUID
-      supabase.from('departments').select('id, name, campus:campuses(name)').then(({ data }) => {
-        if (data && data.length > 0) {
-          const matchedDept = data.find((d: any) => {
-            if (isUuid) return d.id === dept;
-            if (dept.length === 3 && uuidToShortCode(d.id) === dept) return true;
-            const campusName = d.campus?.name || '';
-            const slug = slugify(campusName ? `${d.name}-${campusName}` : d.name);
-            return slug === dept;
-          });
+      supabase.from('departments').select('id, name, campus:campuses(name)').then(
+        ({ data }) => {
+          if (data && data.length > 0) {
+            const matchedDept = data.find((d: any) => {
+              if (isUuid) return d.id === dept;
+              if (dept.length === 3 && uuidToShortCode(d.id) === dept) return true;
+              const campusName = d.campus?.name || '';
+              const slug = slugify(campusName ? `${d.name}-${campusName}` : d.name);
+              return slug === dept;
+            });
 
-          if (matchedDept) {
-            setDepartmentId(matchedDept.id);
-            const campusName = (matchedDept.campus as any)?.name;
-            setDepartmentName(campusName ? `${matchedDept.name}, ${campusName}` : matchedDept.name);
+            if (matchedDept) {
+              setDepartmentId(matchedDept.id);
+              const campusName = (matchedDept.campus as any)?.name;
+              setDepartmentName(campusName ? `${matchedDept.name}, ${campusName}` : matchedDept.name);
+            }
           }
+        },
+        (err: any) => {
+          console.warn('Could not fetch departments for name resolution', err);
         }
-      }).catch(err => {
-        console.warn('Could not fetch departments for name resolution', err);
-      });
+      );
     }
   }, []);
 
