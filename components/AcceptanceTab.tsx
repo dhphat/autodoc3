@@ -1,11 +1,14 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   Search, Users, FileSpreadsheet, PlusCircle, Trash2,
   Download, Loader2, CheckCircle2, ChevronRight, ChevronLeft, X,
+  Settings, ChevronUp, ChevronDown, Upload,
 } from 'lucide-react';
 import { SavedProfile, AcceptancePersonEntry, AcceptanceReportData } from '../types';
 import { generateAcceptanceExcel, generatePaymentExcel, generateTransferExcel } from '../services/excelService';
 import { generateImageDocx } from '../services/docxService';
+import { uploadAcceptanceExcelTemplate, downloadAcceptanceExcelTemplate } from '../services/supabaseService';
+import { useUser } from '../contexts/UserContext';
 
 interface AcceptanceTabProps {
   profiles: SavedProfile[];
@@ -23,6 +26,7 @@ const parseMoney = (val: string): number => {
 };
 
 const AcceptanceTab: React.FC<AcceptanceTabProps> = ({ profiles }) => {
+  const { departmentId } = useUser();
   const [step, setStep] = useState<Step>(1);
 
   // Step 1: Selected profiles (using array to maintain order)
@@ -44,6 +48,41 @@ const AcceptanceTab: React.FC<AcceptanceTabProps> = ({ profiles }) => {
   // Step 3: Exporting
   const [isExporting, setIsExporting] = useState(false);
   const [exportDone, setExportDone] = useState(false);
+
+  // Template Excel management
+  const [excelTemplate, setExcelTemplate] = useState<File | null>(null);
+  const [templateLoading, setTemplateLoading] = useState(false);
+  const [showTemplateSettings, setShowTemplateSettings] = useState(false);
+  const templateUploadRef = useRef<HTMLInputElement>(null);
+
+  const loadExcelTemplate = useCallback(async () => {
+    setTemplateLoading(true);
+    try {
+      const file = await downloadAcceptanceExcelTemplate(departmentId);
+      if (file) setExcelTemplate(file);
+    } catch (err) { console.error(err); }
+    finally { setTemplateLoading(false); }
+  }, [departmentId]);
+
+  useEffect(() => { loadExcelTemplate(); }, [loadExcelTemplate]);
+
+  const handleTemplateUpload = async (file: File) => {
+    try {
+      await uploadAcceptanceExcelTemplate(file, departmentId);
+      setExcelTemplate(file);
+    } catch (err: any) { alert('Lỗi upload template: ' + err.message); }
+  };
+
+  const handleDownloadTemplate = (file: File) => {
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   // Filter profiles for search
   const filteredProfiles = useMemo(() => {
@@ -196,6 +235,64 @@ const AcceptanceTab: React.FC<AcceptanceTabProps> = ({ profiles }) => {
 
   return (
     <div className="space-y-6 animate-fadeIn">
+      {/* Template Excel Management */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+        <button
+          onClick={() => setShowTemplateSettings(!showTemplateSettings)}
+          className="w-full p-4 flex items-center justify-between text-left hover:bg-slate-50 transition-colors rounded-xl"
+        >
+          <div className="flex items-center gap-2">
+            <Settings className="w-4 h-4 text-slate-500" />
+            <span className="text-sm font-semibold text-slate-700">Quản lý mẫu Excel</span>
+            {excelTemplate
+              ? <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">✓ Đã cấu hình</span>
+              : <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Cần upload</span>}
+          </div>
+          {showTemplateSettings ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+        </button>
+        {showTemplateSettings && (
+          <div className="px-4 pb-4 animate-fadeIn">
+            <p className="text-xs text-slate-500 mb-3">
+              Upload file Excel mẫu (.xlsx) để hệ thống lưu trữ. Tải về để chỉnh sửa nội dung mẫu theo nhu cầu.
+            </p>
+            <div className="flex gap-2">
+              <input
+                ref={templateUploadRef}
+                type="file"
+                accept=".xlsx"
+                className="hidden"
+                onChange={(e) => e.target.files?.[0] && handleTemplateUpload(e.target.files[0])}
+              />
+              <button
+                onClick={() => templateUploadRef.current?.click()}
+                className={`flex-1 border-2 border-dashed rounded-lg p-3 text-sm flex items-center justify-center gap-2 transition-colors ${
+                  excelTemplate
+                    ? 'border-green-300 bg-green-50 text-green-700'
+                    : 'border-slate-300 text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                <Upload className="w-4 h-4" />
+                {excelTemplate ? `Mẫu: ${excelTemplate.name}` : 'Upload Template Excel (.xlsx)'}
+              </button>
+              {excelTemplate && (
+                <button
+                  onClick={() => handleDownloadTemplate(excelTemplate)}
+                  className="flex-none bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 border border-blue-200 rounded-lg p-3 transition-colors flex items-center justify-center"
+                  title="Tải xuống template Excel mẫu"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+            {templateLoading && (
+              <p className="text-xs text-slate-400 mt-2 flex items-center gap-1">
+                <Loader2 className="w-3 h-3 animate-spin" /> Đang tải...
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Step Indicator */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
         <div className="flex items-center justify-center gap-2 sm:gap-4">

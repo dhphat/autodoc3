@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Building2, Users, ChevronRight, Loader2, RefreshCw,
-  Shield, UserCheck, UserX, LayoutGrid,
+  Shield, UserCheck, UserX, LayoutGrid, FileText,
 } from 'lucide-react';
 import { useUser } from '../../contexts/UserContext';
 import UserManagement from './UserManagement';
 import DepartmentManagement from './DepartmentManagement';
+import TemplateManagement from './TemplateManagement';
 import { getUsers } from '../../services/adminService';
 import { UserProfile } from '../../types';
 
-type AdminTab = 'overview' | 'users' | 'departments';
+type AdminTab = 'overview' | 'users' | 'departments' | 'templates';
 
 const AdminPage: React.FC = () => {
   const { userProfile } = useUser();
@@ -35,6 +36,7 @@ const AdminPage: React.FC = () => {
     { id: 'overview' as AdminTab, label: 'Tổng quan', icon: LayoutGrid },
     { id: 'users' as AdminTab, label: 'Quản lý User', icon: Users },
     { id: 'departments' as AdminTab, label: 'Phòng ban & Đơn vị', icon: Building2 },
+    { id: 'templates' as AdminTab, label: 'Mẫu Tài Liệu', icon: FileText },
   ];
 
   return (
@@ -132,6 +134,12 @@ const AdminPage: React.FC = () => {
                     icon={<Building2 className="w-5 h-5 text-indigo-600" />}
                     onClick={() => setActiveTab('departments')}
                   />
+                  <QuickAction
+                    title="Mẫu Tài Liệu"
+                    desc="Upload và quản lý template hợp đồng, biên bản theo phòng ban"
+                    icon={<FileText className="w-5 h-5 text-emerald-600" />}
+                    onClick={() => setActiveTab('templates')}
+                  />
                 </div>
               </div>
 
@@ -176,6 +184,10 @@ const AdminPage: React.FC = () => {
 
           {activeTab === 'departments' && (
             <DepartmentManagement />
+          )}
+
+          {activeTab === 'templates' && (
+            <TemplateManagement />
           )}
         </div>
       </div>

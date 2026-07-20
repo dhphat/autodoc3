@@ -93,7 +93,9 @@ const ContractModal: React.FC<ContractModalProps> = ({
     const d = parseMoney(form.don_gia);
     if (!isNaN(s) && !isNaN(d) && d > 0) {
       const tt = s * d;
-      const tn = tt * 0.9;
+      // Nếu đơn giá >= 5,000,000: khấu trừ 10% thuế TNCN
+      // Nếu đơn giá < 5,000,000: thực nhận = thành tiền (không trừ thuế)
+      const tn = d >= 5000000 ? tt * 0.9 : tt;
       const newTT = formatCurrency(tt);
       const newTN = formatCurrency(tn);
       if (form.thanh_tien !== newTT || form.thuc_nhan !== newTN) {

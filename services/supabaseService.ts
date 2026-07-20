@@ -260,3 +260,44 @@ export const downloadDefaultTemplate = async (
   return null;
 };
 
+export const uploadAcceptanceExcelTemplate = async (
+  file: File,
+  departmentId?: string | null
+): Promise<void> => {
+  const path = departmentId
+    ? `departments/${departmentId}/acceptance_template.xlsx`
+    : `defaults/acceptance_template.xlsx`;
+  const { error } = await supabase.storage
+    .from('templates')
+    .upload(path, file, {
+      upsert: true,
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+  if (error) throw error;
+};
+
+export const downloadAcceptanceExcelTemplate = async (
+  departmentId?: string | null
+): Promise<File | null> => {
+  const paths = departmentId
+    ? [`departments/${departmentId}/acceptance_template.xlsx`, `defaults/acceptance_template.xlsx`]
+    : [`defaults/acceptance_template.xlsx`];
+
+  for (const path of paths) {
+    try {
+      const { data, error } = await supabase.storage
+        .from('templates')
+        .download(path);
+      if (!error && data) {
+        return new File(
+          [data],
+          'acceptance_template.xlsx',
+          { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }
+        );
+      }
+    } catch {
+      // Try next path
+    }
+  }
+  return null;
+};
