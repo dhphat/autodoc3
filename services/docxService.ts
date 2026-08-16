@@ -3,6 +3,7 @@ import Docxtemplater from 'docxtemplater';
 import { saveAs } from 'file-saver';
 import { Document, Packer, Paragraph, TextRun, ImageRun, PageBreak, HeadingLevel } from 'docx';
 import { SavedProfile } from '../types';
+import { fetchImageBlobSafe } from './supabaseService';
 
 // Access DocUtils from docxtemplater for module compatibility
 const DocUtils = (Docxtemplater as any).DocUtils;
@@ -537,8 +538,8 @@ export const generateImageDocx = async (profiles: SavedProfile[], soBienBan: str
 
     for (const url of imageUrls) {
       try {
-        const resp = await fetch(url);
-        const blob = await resp.blob();
+        const blob = await fetchImageBlobSafe(url);
+        if (!blob) continue;
         const arrayBuffer = await blob.arrayBuffer();
 
         // Get original dimensions to maintain aspect ratio

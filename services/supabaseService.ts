@@ -57,6 +57,76 @@ export const uploadImage = async (
   return publicUrl;
 };
 
+/**
+ * Lấy Signed URL an toàn có thời hạn (1 giờ) cho ảnh CCCD/VNeID
+ * Tương thích ngược với cả URL đầy đủ cũ lẫn Storage path tương đối
+ */
+export const getSecureImageUrl = async (urlOrPath: string | null | undefined, expiresIn = 3600): Promise<string | null> => {
+  if (!urlOrPath) return null;
+  if (urlOrPath.startsWith('data:')) return urlOrPath;
+
+  try {
+    let storagePath = urlOrPath;
+    if (urlOrPath.includes('/cccd-images/')) {
+      storagePath = urlOrPath.split('/cccd-images/')[1].split('?')[0];
+    }
+
+    // Nếu không phải đường dẫn Supabase Storage hợp lệ thì trả về nguyên bản
+    if (!storagePath) return urlOrPath;
+
+    const { data, error } = await supabase.storage
+      .from('cccd-images')
+      .createSignedUrl(storagePath, expiresIn);
+
+    if (error || !data?.signedUrl) {
+      return urlOrPath; // Fallback URL cũ
+    }
+    return data.signedUrl;
+  } catch {
+    return urlOrPath;
+  }
+};
+
+/**
+ * Tải Blob ảnh an toàn phục vụ chèn vào file Word (DOCX) & Nghiệm thu
+ * Tương thích ngược và tự động fallback nếu bucket ở chế độ private hoặc public
+ */
+export const fetchImageBlobSafe = async (urlOrPath: string | null | undefined): Promise<Blob | null> => {
+  if (!urlOrPath) return null;
+
+  // Nếu là data URL base64
+  if (urlOrPath.startsWith('data:')) {
+    const res = await fetch(urlOrPath);
+    return res.blob();
+  }
+
+  // Thử download trực tiếp qua Supabase Storage client (nếu là đường dẫn storage)
+  if (urlOrPath.includes('/cccd-images/')) {
+    const bucketPath = urlOrPath.split('/cccd-images/')[1].split('?')[0];
+    if (bucketPath) {
+      try {
+        const { data, error } = await supabase.storage
+          .from('cccd-images')
+          .download(bucketPath);
+        if (!error && data) {
+          return data;
+        }
+      } catch {
+        // Fallback fetch qua URL
+      }
+    }
+  }
+
+  // Fallback: Tạo Signed URL rồi fetch
+  const secureUrl = await getSecureImageUrl(urlOrPath);
+  if (secureUrl) {
+    const resp = await fetch(secureUrl);
+    if (resp.ok) return resp.blob();
+  }
+
+  return null;
+};
+
 export const deleteImage = async (url: string): Promise<void> => {
   if (!url) return;
   try {

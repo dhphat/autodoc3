@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Save, Download, Loader2, Upload, FileText, Tag, Search, ChevronDown } from 'lucide-react';
 import { Contract, SavedProfile } from '../types';
-import { createContract, updateContract } from '../services/supabaseService';
+import { createContract, updateContract, fetchImageBlobSafe } from '../services/supabaseService';
 import { generateDocument } from '../services/docxService';
 import { numberToVietnameseText } from '../utils/numberToText';
 import { useUser } from '../contexts/UserContext';
@@ -162,9 +162,9 @@ const ContractModal: React.FC<ContractModalProps> = ({
       const images: Record<string, ArrayBuffer | null> = {};
       const downloadImg = async (url: string, key: string) => {
         try { 
-          const r = await fetch(url); 
-          if (!r.ok) throw new Error(`HTTP error ${r.status}`);
-          images[key] = await r.arrayBuffer(); 
+          const blob = await fetchImageBlobSafe(url);
+          if (!blob) throw new Error(`Không thể tải ảnh cho ${key}`);
+          images[key] = await blob.arrayBuffer(); 
         } catch (e) {
           console.warn(`Failed to download image for ${key}:`, e);
           images[key] = null;

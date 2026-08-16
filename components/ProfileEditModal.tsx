@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Save, User, UserPlus, Image as ImageIcon, Loader2, Upload, Eye, Trash2, ChevronDown } from 'lucide-react';
 import { SavedProfile, DocField } from '../types';
 import { validateField } from '../utils/validation';
-import { uploadImage, saveProfile } from '../services/supabaseService';
+import { uploadImage, saveProfile, deleteImage, getSecureImageUrl } from '../services/supabaseService';
 import { BankData, getBranchesByBank, getUniqueBanks } from '../services/bankService';
 import InputField from './InputField';
 import ImagePreviewModal from './ImagePreviewModal';
@@ -258,6 +257,16 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
 
   const profileFields = fieldDefinitions.filter(f => f.section === 'Party B' && f.key !== 'ten_viet_tat');
 
+  const SecureThumbnail: React.FC<{ url: string; alt: string; className?: string }> = ({ url, alt, className }) => {
+    const [resolved, setResolved] = useState(url);
+    useEffect(() => {
+      if (url) {
+        getSecureImageUrl(url).then(u => { if (u) setResolved(u); });
+      }
+    }, [url]);
+    return <img src={resolved} alt={alt} className={className} />;
+  };
+
   const renderImageSlot = (type: 'front' | 'back' | 'portrait' | 'vneid2_1' | 'vneid2_2', label: string, url: string | null) => {
     const inputId = `edit-${type}-${profile?.id || 'new'}-${Math.random()}`;
     const isUploading = uploadingType === type;
@@ -286,7 +295,7 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
             </div>
           )}
           {url ? (
-            <img src={url} alt={label} className="h-full w-full object-contain" />
+            <SecureThumbnail url={url} alt={label} className="h-full w-full object-contain" />
           ) : (
             <div className="text-slate-400 flex flex-col items-center">
               <ImageIcon className="w-6 h-6 mb-1 opacity-50" />
