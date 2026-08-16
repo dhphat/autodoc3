@@ -54,14 +54,16 @@ serve(async (req) => {
     if (action === 'create') {
       const { email, password, full_name, account_name, department_id, role = 'user' } = body
 
-      if (!email || !password || !full_name) {
-        throw new Error('email, password, and full_name are required')
+      if (!email || !full_name) {
+        throw new Error('email and full_name are required')
       }
+
+      const generatedPassword = password || `FPT_${crypto.randomUUID()}!Aa1`
 
       // Create user in Supabase Auth
       const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
         email,
-        password,
+        password: generatedPassword,
         email_confirm: true,
         user_metadata: { full_name },
       })
@@ -80,6 +82,7 @@ serve(async (req) => {
           department_id: department_id || null,
           role,
           is_active: true,
+          login_provider: email.endsWith('@fpt.edu.vn') ? 'google' : 'email',
         })
 
       if (profileError) {

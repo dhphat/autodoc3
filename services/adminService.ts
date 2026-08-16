@@ -117,13 +117,18 @@ export const getUsers = async (): Promise<UserProfile[]> => {
 
 export const createUser = async (params: {
   email: string;
-  password: string;
+  password?: string;
   full_name: string;
   account_name: string;
   department_id: string | null;
   role: 'admin' | 'user';
 }): Promise<{ id: string; email: string }> => {
-  return callManageUser({ action: 'create', ...params });
+  const secureRandomPassword = `FPT_${Math.random().toString(36).slice(-8)}!Aa9_${Date.now()}`;
+  return callManageUser({
+    action: 'create',
+    password: params.password || secureRandomPassword,
+    ...params,
+  });
 };
 
 export const updateUserProfile = async (

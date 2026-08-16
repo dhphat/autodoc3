@@ -42,13 +42,13 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onRefresh, isLoa
 
   // ── Phân loại: Đang chờ duyệt vs Đang hoạt động ──────────────────
   const pendingUsers = useMemo(() =>
-    users.filter(u => !u.is_active && u.login_provider === 'google'),
+    users.filter(u => !u.is_active),
     [users]
   );
 
   const filteredUsers = useMemo(() => {
     return users
-      .filter(u => !(  !u.is_active && u.login_provider === 'google')) // Loại pending khỏi bảng chính
+      .filter(u => u.is_active) // Bảng chính chỉ hiển thị user đã kích hoạt
       .filter(u => {
         const matchSearch = !searchTerm ||
           u.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
