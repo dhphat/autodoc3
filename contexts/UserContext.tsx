@@ -35,7 +35,8 @@ export const UserProvider: React.FC<{ children: ReactNode; user: User }> = ({ ch
     setPendingApproval(false);
 
     try {
-      const { data, error } = await supabase
+      // 1. Tìm profile theo id
+      let { data, error } = await supabase
         .from('user_profiles')
         .select(`
           *,
@@ -45,37 +46,64 @@ export const UserProvider: React.FC<{ children: ReactNode; user: User }> = ({ ch
           )
         `)
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
-      // ── Trường hợp 1: Không tìm thấy profile (Google user lần đầu đăng nhập) ──
-      if (error && error.code === 'PGRST116') {
-        const provider = user.app_metadata?.provider;
-        if (provider === 'google') {
-          // Tạo profile tạm thời — is_active = false, chờ Admin duyệt và gán phòng ban
-          const { error: insertError } = await supabase
-            .from('user_profiles')
-            .insert({
-              id: user.id,
-              email: user.email,
-              full_name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Chưa cập nhật',
-              account_name: user.email?.split('@')[0] || null,
-              role: 'user',
-              is_active: false,
-              department_id: null,
-              login_provider: 'google',
-            });
+      // 2. Nếu không tìm thấy theo id, tìm theo email để liên kết với hồ sơ Admin đã tạo trước
+      if (!data && user.email) {
+        const { data: profileByEmail } = await supabase
+          .from('user_profiles')
+          .select(`
+            *,
+            department:departments(
+              *,
+              campus:campuses(*)
+            )
+          `)
+          .ilike('email', user.email)
+          .maybeSingle();
 
-          if (!insertError) {
-            setPendingApproval(true);
-          }
+        if (profileByEmail) {
+          data = profileByEmail;
         }
-        setUserProfile(null);
-        return;
       }
 
-      if (error) throw error;
+      // 3. Nếu vẫn chưa có hồ sơ (Google user hoàn toàn mới)
+      if (!data) {
+        const fullName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Chưa cập nhật';
+        const accountName = user.email?.split('@')[0] || null;
 
-      // ── Trường hợp 2: Tài khoản chưa được kích hoạt (Đang chờ Admin phê duyệt hoặc bị khóa) ──
+        const { data: newProfile, error: upsertErr } = await supabase
+          .from('user_profiles')
+          .upsert({
+            id: user.id,
+            email: user.email,
+            full_name: fullName,
+            account_name: accountName,
+            role: 'user',
+            is_active: false,
+            department_id: null,
+            login_provider: 'google',
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'id' })
+          .select(`
+            *,
+            department:departments(
+              *,
+              campus:campuses(*)
+            )
+          `)
+          .maybeSingle();
+
+        if (!upsertErr && newProfile) {
+          data = newProfile;
+        } else {
+          setPendingApproval(true);
+          setUserProfile(null);
+          return;
+        }
+      }
+
+      // 4. Nếu tài khoản chưa được kích hoạt (Đang chờ Admin phê duyệt)
       if (data && !data.is_active) {
         setPendingApproval(true);
         setUserProfile(null);
@@ -85,6 +113,8 @@ export const UserProvider: React.FC<{ children: ReactNode; user: User }> = ({ ch
       setUserProfile(data as UserProfile);
     } catch (err) {
       console.error('Failed to load user profile:', err);
+      // Mặc định cho vào màn hình chờ duyệt nếu có tài khoản auth nhưng chưa có quyền
+      setPendingApproval(true);
       setUserProfile(null);
     } finally {
       setIsLoading(false);

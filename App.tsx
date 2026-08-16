@@ -28,7 +28,7 @@ const App: React.FC = () => {
   return <AuthenticatedApp />;
 };
 
-const ALLOWED_DOMAIN = 'fpt.edu.vn';
+const ALLOWED_DOMAINS = ['fpt.edu.vn', 'fe.edu.vn', 'fpt.com.vn', 'fsb.edu.vn'];
 
 const AuthenticatedApp: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -43,13 +43,14 @@ const AuthenticatedApp: React.FC = () => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
-        const userEmail = session.user.email || '';
+        const userEmail = (session.user.email || '').toLowerCase().trim();
         const provider = session.user.app_metadata?.provider;
 
-        // Chỉ kiểm tra domain với Google OAuth — chỉ chấp nhận duy nhất @fpt.edu.vn
-        if (provider === 'google' && !userEmail.endsWith(`@${ALLOWED_DOMAIN}`)) {
+        // Chỉ kiểm tra domain với Google OAuth — hỗ trợ các tên miền FPT Education
+        const isFptDomain = ALLOWED_DOMAINS.some(d => userEmail.endsWith(`@${d}`));
+        if (provider === 'google' && !isFptDomain) {
           await supabase.auth.signOut();
-          setAuthError(`Chỉ chấp nhận tài khoản @${ALLOWED_DOMAIN}. Tài khoản "${userEmail}" không được phép truy cập.`);
+          setAuthError(`Chỉ chấp nhận tài khoản FPT (@fpt.edu.vn / @fe.edu.vn). Tài khoản "${session.user.email}" không được phép truy cập.`);
           setUser(null);
           return;
         }
