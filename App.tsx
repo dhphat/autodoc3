@@ -36,70 +36,78 @@ const AuthenticatedApp: React.FC = () => {
   const [authError, setAuthError] = useState('');
 
   useEffect(() => {
-    // 1. Bắt lỗi trả về từ OAuth trong URL (nếu có từ Google/Supabase)
-    const hash = window.location.hash;
-    const query = new URLSearchParams(window.location.search);
-    
-    let urlError = query.get('error_description') || query.get('error');
-    if (!urlError && hash.includes('error=')) {
-      const hashParams = new URLSearchParams(hash.substring(1));
-      urlError = hashParams.get('error_description') || hashParams.get('error');
-    }
+    let isMounted = true;
 
-    if (urlError) {
-      const decodedError = decodeURIComponent(urlError.replace(/\+/g, ' '));
-      setAuthError(`Lỗi xác thực: ${decodedError}`);
-    }
+    const initAuth = async () => {
+      try {
+        const hash = window.location.hash;
+        const query = new URLSearchParams(window.location.search);
 
-    // 2. Tự động trích xuất và nạp Access Token / Refresh Token từ Hash URL
-    if (hash.includes('access_token=') && hash.includes('refresh_token=')) {
-      const hashParams = new URLSearchParams(hash.substring(1));
-      const access_token = hashParams.get('access_token');
-      const refresh_token = hashParams.get('refresh_token');
+        // 1. Kiểm tra lỗi OAuth từ URL
+        let urlError = query.get('error_description') || query.get('error');
+        if (!urlError && hash.includes('error=')) {
+          const hashParams = new URLSearchParams(hash.substring(1));
+          urlError = hashParams.get('error_description') || hashParams.get('error');
+        }
 
-      if (access_token && refresh_token) {
-        supabase.auth.setSession({ access_token, refresh_token }).then(({ data, error: sessionErr }) => {
-          if (!sessionErr && data?.session?.user) {
-            setUser(data.session.user);
-            setAuthLoading(false);
-            window.history.replaceState({}, document.title, window.location.pathname);
-          }
-        }).catch(console.error);
-      }
-    }
+        if (urlError && isMounted) {
+          const decoded = decodeURIComponent(urlError.replace(/\+/g, ' '));
+          setAuthError(`Lỗi xác thực: ${decoded}`);
+        }
 
-    // 3. Lấy session hiện tại
-    supabase.auth.getSession().then(({ data: { session }, error: sessionError }) => {
-      if (sessionError) {
-        setAuthError(sessionError.message);
-      }
-      if (session?.user) {
-        setUser(session.user);
-      }
-      setAuthLoading(false);
-    });
+        // 2. Nếu có token trong hash URL, nạp session bằng setSession trước
+        if (hash.includes('access_token=') && hash.includes('refresh_token=')) {
+          const hashParams = new URLSearchParams(hash.substring(1));
+          const access_token = hashParams.get('access_token');
+          const refresh_token = hashParams.get('refresh_token');
 
-    // 4. Lắng nghe thay đổi trạng thái Auth
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
-        if (session?.user) {
-          setAuthError('');
-          setUser(session.user);
-          if (window.location.hash.includes('access_token=')) {
-            window.history.replaceState({}, document.title, window.location.pathname);
+          if (access_token && refresh_token) {
+            const { data, error } = await supabase.auth.setSession({ access_token, refresh_token });
+            if (!error && data.session?.user) {
+              if (isMounted) {
+                setUser(data.session.user);
+                setAuthLoading(false);
+              }
+              window.history.replaceState({}, document.title, window.location.pathname);
+              return;
+            }
           }
         }
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-      }
 
-      if (session?.user) {
-        setUser(session.user);
+        // 3. Lấy session hiện có từ storage
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError && isMounted) {
+          setAuthError(sessionError.message);
+        }
+        if (isMounted) {
+          setUser(session?.user ?? null);
+          setAuthLoading(false);
+        }
+      } catch (err: any) {
+        console.error('Auth initialization error:', err);
+        if (isMounted) setAuthLoading(false);
       }
-      setAuthLoading(false);
+    };
+
+    initAuth();
+
+    // 4. Lắng nghe thay đổi trạng thái đăng nhập
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (isMounted) {
+        if (session?.user) {
+          setUser(session.user);
+          setAuthError('');
+        } else if (event === 'SIGNED_OUT') {
+          setUser(null);
+        }
+        setAuthLoading(false);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   if (authLoading) {
