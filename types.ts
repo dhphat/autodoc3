@@ -23,6 +23,7 @@ export interface UserProfile {
   department_id: string | null;
   role: 'admin' | 'user';
   is_active: boolean;
+  login_provider?: 'email' | 'google'; // Phương thức đăng nhập
   created_at: string;
   updated_at: string;
   // Joined fields

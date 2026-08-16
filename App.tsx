@@ -28,18 +28,36 @@ const App: React.FC = () => {
   return <AuthenticatedApp />;
 };
 
+const ALLOWED_DOMAIN = 'fpt.edu.vn';
+
 const AuthenticatedApp: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState('');
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       setAuthLoading(false);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) {
+        const userEmail = session.user.email || '';
+        const provider = session.user.app_metadata?.provider;
+
+        // Chỉ kiểm tra domain với Google OAuth — không chặn Email/Password
+        if (provider === 'google' && !userEmail.endsWith(`@${ALLOWED_DOMAIN}`)) {
+          await supabase.auth.signOut();
+          setAuthError(`Chỉ chấp nhận tài khoản @${ALLOWED_DOMAIN}. Tài khoản "${userEmail}" không được phép truy cập.`);
+          setUser(null);
+          return;
+        }
+      }
+      setAuthError('');
       setUser(session?.user ?? null);
     });
+
     return () => subscription.unsubscribe();
   }, []);
 
@@ -51,7 +69,7 @@ const AuthenticatedApp: React.FC = () => {
     );
   }
 
-  if (!user) return <LoginPage />;
+  if (!user) return <LoginPage authError={authError} />;
 
   return (
     <UserProvider user={user}>
@@ -59,6 +77,7 @@ const AuthenticatedApp: React.FC = () => {
     </UserProvider>
   );
 };
+
 
 // ======= Main App =======
 const MainApp: React.FC<{ user: User }> = ({ user }) => {
