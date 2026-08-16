@@ -12,7 +12,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ authError }) => {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // ── Đăng nhập Google SSO (chỉ @fpt.edu.vn) ───────────────────────────
+  // ── Đăng nhập Google SSO ─────────────────────────────────────────
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     setError('');
@@ -21,7 +21,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ authError }) => {
         provider: 'google',
         options: {
           redirectTo: window.location.origin,
-          queryParams: { hd: ALLOWED_DOMAIN },
         },
       });
       if (error) throw error;

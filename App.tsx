@@ -36,12 +36,33 @@ const AuthenticatedApp: React.FC = () => {
   const [authError, setAuthError] = useState('');
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // 1. Bắt lỗi trả về từ OAuth trong URL (nếu có từ Google/Supabase)
+    const hash = window.location.hash;
+    const query = new URLSearchParams(window.location.search);
+    
+    let urlError = query.get('error_description') || query.get('error');
+    if (!urlError && hash.includes('error=')) {
+      const hashParams = new URLSearchParams(hash.substring(1));
+      urlError = hashParams.get('error_description') || hashParams.get('error');
+    }
+
+    if (urlError) {
+      const decodedError = decodeURIComponent(urlError.replace(/\+/g, ' '));
+      setAuthError(`Lỗi xác thực: ${decodedError}`);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    // 2. Lấy session hiện tại
+    supabase.auth.getSession().then(({ data: { session }, error: sessionError }) => {
+      if (sessionError) {
+        setAuthError(sessionError.message);
+      }
       setUser(session?.user ?? null);
       setAuthLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    // 3. Lắng nghe thay đổi trạng thái Auth
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         const userEmail = (session.user.email || '').toLowerCase().trim();
         const provider = session.user.app_metadata?.provider;
@@ -55,8 +76,15 @@ const AuthenticatedApp: React.FC = () => {
           return;
         }
       }
-      setAuthError('');
+
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+        if (session?.user) {
+          setAuthError('');
+        }
+      }
+
       setUser(session?.user ?? null);
+      setAuthLoading(false);
     });
 
     return () => subscription.unsubscribe();
