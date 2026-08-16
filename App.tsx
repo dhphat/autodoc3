@@ -55,36 +55,27 @@ const AuthenticatedApp: React.FC = () => {
           setAuthError(`Lỗi xác thực: ${decoded}`);
         }
 
-        // 2. Nếu có token trong hash URL, nạp session bằng setSession trước
-        if (hash.includes('access_token=') && hash.includes('refresh_token=')) {
-          const hashParams = new URLSearchParams(hash.substring(1));
-          const access_token = hashParams.get('access_token');
-          const refresh_token = hashParams.get('refresh_token');
-
-          if (access_token && refresh_token) {
-            const { data, error } = await supabase.auth.setSession({ access_token, refresh_token });
-            if (!error && data.session?.user) {
-              if (isMounted) {
-                setUser(data.session.user);
-                setAuthLoading(false);
-              }
-              window.history.replaceState({}, document.title, window.location.pathname);
-              return;
-            }
-          }
-        }
-
-        // 3. Lấy session hiện có từ storage
+        // 2. Lấy session hiện có (Supabase SDK đã tự động khôi phục session từ URL hash hoặc localStorage)
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError && isMounted) {
-          setAuthError(sessionError.message);
-        }
-        if (isMounted) {
+        if (sessionError) {
+          console.warn('Session error on init:', sessionError.message);
+          // Nếu session bị lỗi/401, xóa token rác trong localStorage để tránh báo lỗi liên tục
+          await supabase.auth.signOut().catch(() => {});
+          if (isMounted) {
+            setUser(null);
+          }
+        } else if (isMounted) {
           setUser(session?.user ?? null);
-          setAuthLoading(false);
+        }
+
+        // 3. Dọn dẹp URL hash sau khi OAuth callback hoàn tất
+        if (hash.includes('access_token=') || hash.includes('code=')) {
+          window.history.replaceState({}, document.title, window.location.pathname);
         }
       } catch (err: any) {
         console.error('Auth initialization error:', err);
+        if (isMounted) setUser(null);
+      } finally {
         if (isMounted) setAuthLoading(false);
       }
     };
