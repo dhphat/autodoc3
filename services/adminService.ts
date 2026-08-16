@@ -123,60 +123,28 @@ export const createUser = async (params: {
   department_id: string | null;
   role: 'admin' | 'user';
 }): Promise<{ id: string; email: string }> => {
-  // 1. Thử gọi RPC admin_create_user (nhanh, bảo mật và an toàn 100%)
-  try {
-    const { data, error } = await supabase.rpc('admin_create_user', {
-      p_email: params.email,
-      p_full_name: params.full_name,
-      p_account_name: params.account_name || null,
-      p_department_id: params.department_id || null,
-      p_role: params.role || 'user',
-    });
+  const email = params.email.trim();
+  const fullName = params.full_name.trim();
+  const accountName = params.account_name?.trim() || email.split('@')[0];
 
-    if (!error && data?.success) {
-      return { id: data.id, email: params.email };
-    }
-  } catch (rpcErr) {
-    console.warn('RPC admin_create_user failed, falling back to manage-user:', rpcErr);
+  // 1. Gọi trực tiếp RPC admin_create_user (an toàn 100%, không bị duplicate key)
+  const { data, error } = await supabase.rpc('admin_create_user', {
+    p_email: email,
+    p_full_name: fullName,
+    p_account_name: accountName,
+    p_department_id: params.department_id || null,
+    p_role: params.role || 'user',
+  });
+
+  if (error) {
+    throw new Error(error.message || 'Không thể tạo tài khoản');
   }
 
-  // 2. Fallback sang Edge Function
-  const secureRandomPassword = `FPT_${Math.random().toString(36).slice(-8)}!Aa9_${Date.now()}`;
-  try {
-    return await callManageUser({
-      action: 'create',
-      password: params.password || secureRandomPassword,
-      ...params,
-    });
-  } catch (err: any) {
-    // 3. Fallback: Cập nhật trực tiếp user_profiles nếu user đã có profile
-    const { data: existingProfile } = await supabase
-      .from('user_profiles')
-      .select('id')
-      .eq('email', params.email)
-      .maybeSingle();
-
-    if (existingProfile) {
-      const isFptEmail = params.email.endsWith('@fpt.edu.vn');
-      const { error: updateErr } = await supabase
-        .from('user_profiles')
-        .update({
-          full_name: params.full_name,
-          account_name: params.account_name || params.email.split('@')[0],
-          department_id: params.department_id,
-          role: params.role,
-          is_active: true,
-          login_provider: isFptEmail ? 'google' : 'email',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existingProfile.id);
-
-      if (!updateErr) {
-        return { id: existingProfile.id, email: params.email };
-      }
-    }
-    throw err;
+  if (data?.success) {
+    return { id: data.id, email };
   }
+
+  throw new Error('Tạo tài khoản thất bại');
 };
 
 export const updateUserProfile = async (
