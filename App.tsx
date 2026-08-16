@@ -83,6 +83,7 @@ const AuthenticatedApp: React.FC = () => {
 const MainApp: React.FC<{ user: User }> = ({ user }) => {
   const { userProfile, isAdmin, departmentId, isLoading: profileLoading } = useUser();
   const [activeTab, setActiveTab] = useState<Tab>('contracts');
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
 
   // Profiles
   const [savedProfiles, setSavedProfiles] = useState<SavedProfile[]>([]);
@@ -111,6 +112,17 @@ const MainApp: React.FC<{ user: User }> = ({ user }) => {
       loadBankData().then(setBankData);
     }
   }, [loadProfiles, profileLoading]);
+
+  // Tải số tài khoản Google chờ duyệt (chỉ với Admin)
+  useEffect(() => {
+    if (!isAdmin || profileLoading) return;
+    import('./services/adminService').then(({ getUsers }) => {
+      getUsers().then(users => {
+        const count = users.filter(u => !u.is_active && u.login_provider === 'google').length;
+        setPendingApprovalCount(count);
+      }).catch(console.error);
+    });
+  }, [isAdmin, profileLoading, activeTab]); // Re-fetch khi chuyển tab
 
   useEffect(() => {
     if (bankData.length > 0) {
@@ -253,6 +265,7 @@ const MainApp: React.FC<{ user: User }> = ({ user }) => {
                 active={activeTab === 'admin'}
                 onClick={() => setActiveTab('admin')}
                 highlight
+                notificationCount={pendingApprovalCount}
               />
             )}
           </div>
@@ -296,10 +309,11 @@ const NavTab: React.FC<{
   onClick: () => void;
   badge?: React.ReactNode;
   highlight?: boolean;
-}> = ({ label, icon, active, onClick, badge, highlight }) => (
+  notificationCount?: number; // Badge số đỏ thông báo
+}> = ({ label, icon, active, onClick, badge, highlight, notificationCount }) => (
   <button
     onClick={onClick}
-    className={`py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap px-1 ${
+    className={`relative py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap px-1 ${
       active
         ? highlight
           ? 'border-purple-600 text-purple-600'
@@ -310,6 +324,11 @@ const NavTab: React.FC<{
     {icon}
     {label}
     {badge}
+    {notificationCount != null && notificationCount > 0 && (
+      <span className="ml-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 shadow-sm">
+        {notificationCount}
+      </span>
+    )}
   </button>
 );
 
