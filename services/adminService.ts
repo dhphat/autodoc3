@@ -123,6 +123,24 @@ export const createUser = async (params: {
   department_id: string | null;
   role: 'admin' | 'user';
 }): Promise<{ id: string; email: string }> => {
+  // 1. Thử gọi RPC admin_create_user (nhanh, bảo mật và an toàn 100%)
+  try {
+    const { data, error } = await supabase.rpc('admin_create_user', {
+      p_email: params.email,
+      p_full_name: params.full_name,
+      p_account_name: params.account_name || null,
+      p_department_id: params.department_id || null,
+      p_role: params.role || 'user',
+    });
+
+    if (!error && data?.success) {
+      return { id: data.id, email: params.email };
+    }
+  } catch (rpcErr) {
+    console.warn('RPC admin_create_user failed, falling back to manage-user:', rpcErr);
+  }
+
+  // 2. Fallback sang Edge Function
   const secureRandomPassword = `FPT_${Math.random().toString(36).slice(-8)}!Aa9_${Date.now()}`;
   try {
     return await callManageUser({
@@ -131,7 +149,7 @@ export const createUser = async (params: {
       ...params,
     });
   } catch (err: any) {
-    // Nếu Edge Function báo lỗi do user đã tồn tại hoặc bị xung đột trigger pkey
+    // 3. Fallback: Cập nhật trực tiếp user_profiles nếu user đã có profile
     const { data: existingProfile } = await supabase
       .from('user_profiles')
       .select('id')
@@ -139,6 +157,7 @@ export const createUser = async (params: {
       .maybeSingle();
 
     if (existingProfile) {
+      const isFptEmail = params.email.endsWith('@fpt.edu.vn') || params.email.endsWith('@fe.edu.vn');
       const { error: updateErr } = await supabase
         .from('user_profiles')
         .update({
@@ -147,7 +166,7 @@ export const createUser = async (params: {
           department_id: params.department_id,
           role: params.role,
           is_active: true,
-          login_provider: params.email.endsWith('@fpt.edu.vn') ? 'google' : 'email',
+          login_provider: isFptEmail ? 'google' : 'email',
           updated_at: new Date().toISOString(),
         })
         .eq('id', existingProfile.id);

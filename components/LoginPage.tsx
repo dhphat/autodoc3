@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Loader2, AlertCircle, ChevronDown } from 'lucide-react';
 import { supabase } from '../services/supabaseClient';
 
-const ALLOWED_DOMAIN = 'fpt.edu.vn';
+const ALLOWED_DOMAINS = ['fpt.edu.vn', 'fe.edu.vn'];
 
 interface LoginPageProps {
   authError?: string; // Lỗi domain từ App.tsx (Google OAuth)
@@ -32,7 +32,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ authError }) => {
     }
   };
 
-  // ── Đăng nhập Google (chỉ @fpt.edu.vn) ───────────────────────────
+  // ── Đăng nhập Google (chỉ @fpt.edu.vn / @fe.edu.vn) ───────────────
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     setError('');
@@ -41,7 +41,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ authError }) => {
         provider: 'google',
         options: {
           redirectTo: window.location.origin,
-          queryParams: { hd: ALLOWED_DOMAIN },
         },
       });
       if (error) throw error;
@@ -99,7 +98,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ authError }) => {
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
               </svg>
             )}
-            {googleLoading ? 'Đang chuyển hướng...' : `Đăng nhập với Google (@${ALLOWED_DOMAIN})`}
+            {googleLoading ? 'Đang chuyển hướng...' : 'Đăng nhập với Google (FPT / FE)'}
           </button>
 
           {/* ── Lỗi chung (cả Email và Google) ───────────────────── */}
