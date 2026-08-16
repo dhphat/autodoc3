@@ -157,7 +157,7 @@ export const createUser = async (params: {
       .maybeSingle();
 
     if (existingProfile) {
-      const isFptEmail = params.email.endsWith('@fpt.edu.vn') || params.email.endsWith('@fe.edu.vn');
+      const isFptEmail = params.email.endsWith('@fpt.edu.vn');
       const { error: updateErr } = await supabase
         .from('user_profiles')
         .update({

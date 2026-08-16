@@ -1,7 +1,6 @@
 -- ================================================================
--- MIGRATION: HÀM RPC ADMIN_CREATE_USER
--- Mục đích: Cho phép Admin tạo User an toàn trực tiếp từ Dashboard
---           Không bị lỗi duplicate key, không cần deploy Edge Function
+-- MIGRATION: HÀM RPC ADMIN_CREATE_USER (CHỈ CHẤP NHẬN @fpt.edu.vn)
+-- Mục đích: Cho phép Admin tạo User an toàn 100%, không bị lỗi duplicate key
 -- Ngày: 2026-08-16
 -- ================================================================
 
@@ -15,24 +14,22 @@ CREATE OR REPLACE FUNCTION public.admin_create_user(
 RETURNS JSONB AS $$
 DECLARE
   v_user_id UUID;
-  v_provider TEXT;
 BEGIN
-  -- 1. Kiểm tra quyền Admin
+  -- 1. Kiểm tra quyền Admin của người gọi
   IF NOT public.is_admin() THEN
-    RAISE EXCEPTION 'Forbidden: Admin role required';
+    RAISE EXCEPTION 'Forbidden: Yêu cầu quyền Quản trị viên (Admin)';
   END IF;
 
-  -- 2. Kiểm tra tham số email
+  -- 2. Kiểm tra email hợp lệ và đúng đuôi @fpt.edu.vn
   IF p_email IS NULL OR TRIM(p_email) = '' THEN
-    RAISE EXCEPTION 'Email is required';
+    RAISE EXCEPTION 'Email không được để trống';
   END IF;
 
   p_email := LOWER(TRIM(p_email));
 
-  v_provider := CASE 
-    WHEN p_email LIKE '%@fpt.edu.vn' OR p_email LIKE '%@fe.edu.vn' THEN 'google' 
-    ELSE 'email' 
-  END;
+  IF NOT (p_email LIKE '%@fpt.edu.vn') THEN
+    RAISE EXCEPTION 'Chỉ chấp nhận tài khoản có đuôi email @fpt.edu.vn';
+  END IF;
 
   -- 3. Kiểm tra xem user đã tồn tại trong auth.users chưa
   SELECT id INTO v_user_id FROM auth.users WHERE LOWER(email) = p_email LIMIT 1;
@@ -57,9 +54,9 @@ BEGIN
       v_user_id,
       '00000000-0000-0000-0000-000000000000',
       p_email,
-      extensions.crypt(p_email || '_fpt_pass_temp', extensions.gen_salt('bf')),
+      extensions.crypt(p_email || '_fpt_secure_salt', extensions.gen_salt('bf')),
       NOW(),
-      jsonb_build_object('provider', v_provider, 'providers', jsonb_build_array(v_provider)),
+      jsonb_build_object('provider', 'google', 'providers', jsonb_build_array('google')),
       jsonb_build_object('full_name', p_full_name),
       NOW(),
       NOW(),
@@ -68,7 +65,7 @@ BEGIN
     );
   END IF;
 
-  -- 4. Tạo hoặc cập nhật user_profiles (upsert an toàn 100%)
+  -- 4. Tạo hoặc cập nhật user_profiles (upsert an toàn 100%, không bao giờ duplicate key)
   INSERT INTO public.user_profiles (
     id,
     email,
@@ -87,7 +84,7 @@ BEGIN
     p_department_id,
     COALESCE(p_role, 'user'),
     true,
-    v_provider,
+    'google',
     NOW()
   )
   ON CONFLICT (id) DO UPDATE SET
@@ -97,7 +94,7 @@ BEGIN
     department_id = EXCLUDED.department_id,
     role = EXCLUDED.role,
     is_active = true,
-    login_provider = EXCLUDED.login_provider,
+    login_provider = 'google',
     updated_at = NOW();
 
   RETURN jsonb_build_object('success', true, 'id', v_user_id, 'email', p_email);

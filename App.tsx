@@ -28,7 +28,7 @@ const App: React.FC = () => {
   return <AuthenticatedApp />;
 };
 
-const ALLOWED_DOMAINS = ['fpt.edu.vn', 'fe.edu.vn'];
+const ALLOWED_DOMAIN = 'fpt.edu.vn';
 
 const AuthenticatedApp: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -46,11 +46,10 @@ const AuthenticatedApp: React.FC = () => {
         const userEmail = session.user.email || '';
         const provider = session.user.app_metadata?.provider;
 
-        // Chỉ kiểm tra domain với Google OAuth — cho phép cả fpt.edu.vn và fe.edu.vn
-        const isAllowedDomain = ALLOWED_DOMAINS.some(d => userEmail.endsWith(`@${d}`));
-        if (provider === 'google' && !isAllowedDomain) {
+        // Chỉ kiểm tra domain với Google OAuth — chỉ chấp nhận duy nhất @fpt.edu.vn
+        if (provider === 'google' && !userEmail.endsWith(`@${ALLOWED_DOMAIN}`)) {
           await supabase.auth.signOut();
-          setAuthError(`Chỉ chấp nhận tài khoản @fpt.edu.vn hoặc @fe.edu.vn. Tài khoản "${userEmail}" không được phép truy cập.`);
+          setAuthError(`Chỉ chấp nhận tài khoản @${ALLOWED_DOMAIN}. Tài khoản "${userEmail}" không được phép truy cập.`);
           setUser(null);
           return;
         }
