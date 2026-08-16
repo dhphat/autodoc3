@@ -49,7 +49,6 @@ const AuthenticatedApp: React.FC = () => {
     if (urlError) {
       const decodedError = decodeURIComponent(urlError.replace(/\+/g, ' '));
       setAuthError(`Lỗi xác thực: ${decodedError}`);
-      window.history.replaceState({}, document.title, window.location.pathname);
     }
 
     // 2. Lấy session hiện tại
@@ -57,7 +56,9 @@ const AuthenticatedApp: React.FC = () => {
       if (sessionError) {
         setAuthError(sessionError.message);
       }
-      setUser(session?.user ?? null);
+      if (session?.user) {
+        setUser(session.user);
+      }
       setAuthLoading(false);
     });
 
@@ -66,12 +67,16 @@ const AuthenticatedApp: React.FC = () => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
         if (session?.user) {
           setAuthError('');
+          setUser(session.user);
+          // Dọn dẹp hash URL sau khi đã có session
+          if (window.location.hash || window.location.search.includes('code=')) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
       }
 
-      setUser(session?.user ?? null);
       setAuthLoading(false);
     });
 
