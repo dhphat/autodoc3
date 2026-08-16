@@ -75,10 +75,10 @@ export const UserProvider: React.FC<{ children: ReactNode; user: User }> = ({ ch
 
       if (error) throw error;
 
-      // ── Trường hợp 2: Tài khoản bị vô hiệu hóa ──────────────────────────────
+      // ── Trường hợp 2: Tài khoản chưa được kích hoạt (Đang chờ Admin phê duyệt hoặc bị khóa) ──
       if (data && !data.is_active) {
-        // Đăng xuất ngay lập tức, không cho vào hệ thống
-        await supabase.auth.signOut();
+        setPendingApproval(true);
+        setUserProfile(null);
         return;
       }
 

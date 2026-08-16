@@ -30,9 +30,8 @@ const AdminPage: React.FC = () => {
   const totalUsers = users.length;
   const activeUsers = users.filter(u => u.is_active).length;
   const adminCount = users.filter(u => u.role === 'admin').length;
-  const deptSet = new Set(users.map(u => u.department_id).filter(Boolean));
-  // Tài khoản Google chờ Admin phê duyệt
-  const pendingUsers = users.filter(u => !u.is_active && u.login_provider === 'google');
+  // Toàn bộ tài khoản chờ Admin phê duyệt & kích hoạt
+  const pendingUsers = users.filter(u => !u.is_active);
   const pendingCount = pendingUsers.length;
 
   const tabs = [

@@ -113,16 +113,48 @@ const MainApp: React.FC<{ user: User }> = ({ user }) => {
     }
   }, [loadProfiles, profileLoading]);
 
-  // Tải số tài khoản Google chờ duyệt (chỉ với Admin)
+  // Tải và theo dõi số tài khoản chờ duyệt (Realtime cho Admin)
   useEffect(() => {
     if (!isAdmin || profileLoading) return;
-    import('./services/adminService').then(({ getUsers }) => {
-      getUsers().then(users => {
-        const count = users.filter(u => !u.is_active && u.login_provider === 'google').length;
-        setPendingApprovalCount(count);
-      }).catch(console.error);
-    });
-  }, [isAdmin, profileLoading, activeTab]); // Re-fetch khi chuyển tab
+
+    const fetchPending = async () => {
+      try {
+        const { getUsers } = await import('./services/adminService');
+        const users = await getUsers();
+        const pendingList = users.filter(u => !u.is_active);
+        setPendingApprovalCount(prev => {
+          if (pendingList.length > prev && prev > 0) {
+            setToastMessage(`🔔 Có ${pendingList.length} tài khoản đang chờ bạn phê duyệt!`);
+          }
+          return pendingList.length;
+        });
+      } catch (err) {
+        console.error('Failed to fetch pending accounts:', err);
+      }
+    };
+
+    fetchPending();
+
+    // Lắng nghe thay đổi trên bảng user_profiles bằng Supabase Realtime
+    const channel = supabase
+      .channel('admin_user_profiles_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'user_profiles' },
+        () => {
+          fetchPending();
+        }
+      )
+      .subscribe();
+
+    // Interval dự phòng định kỳ 30 giây
+    const interval = setInterval(fetchPending, 30000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
+  }, [isAdmin, profileLoading, activeTab]);
 
   useEffect(() => {
     if (bankData.length > 0) {
