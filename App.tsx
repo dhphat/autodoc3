@@ -63,24 +63,12 @@ const AuthenticatedApp: React.FC = () => {
 
     // 3. Lắng nghe thay đổi trạng thái Auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        const userEmail = (session.user.email || '').toLowerCase().trim();
-        const provider = session.user.app_metadata?.provider;
-
-        // Chỉ kiểm tra domain với Google OAuth — hỗ trợ các tên miền FPT Education
-        const isFptDomain = ALLOWED_DOMAINS.some(d => userEmail.endsWith(`@${d}`));
-        if (provider === 'google' && !isFptDomain) {
-          await supabase.auth.signOut();
-          setAuthError(`Chỉ chấp nhận tài khoản FPT (@fpt.edu.vn / @fe.edu.vn). Tài khoản "${session.user.email}" không được phép truy cập.`);
-          setUser(null);
-          return;
-        }
-      }
-
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
         if (session?.user) {
           setAuthError('');
         }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
       }
 
       setUser(session?.user ?? null);
