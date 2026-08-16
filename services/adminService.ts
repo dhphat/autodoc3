@@ -124,11 +124,40 @@ export const createUser = async (params: {
   role: 'admin' | 'user';
 }): Promise<{ id: string; email: string }> => {
   const secureRandomPassword = `FPT_${Math.random().toString(36).slice(-8)}!Aa9_${Date.now()}`;
-  return callManageUser({
-    action: 'create',
-    password: params.password || secureRandomPassword,
-    ...params,
-  });
+  try {
+    return await callManageUser({
+      action: 'create',
+      password: params.password || secureRandomPassword,
+      ...params,
+    });
+  } catch (err: any) {
+    // Nếu Edge Function báo lỗi do user đã tồn tại hoặc bị xung đột trigger pkey
+    const { data: existingProfile } = await supabase
+      .from('user_profiles')
+      .select('id')
+      .eq('email', params.email)
+      .maybeSingle();
+
+    if (existingProfile) {
+      const { error: updateErr } = await supabase
+        .from('user_profiles')
+        .update({
+          full_name: params.full_name,
+          account_name: params.account_name || params.email.split('@')[0],
+          department_id: params.department_id,
+          role: params.role,
+          is_active: true,
+          login_provider: params.email.endsWith('@fpt.edu.vn') ? 'google' : 'email',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingProfile.id);
+
+      if (!updateErr) {
+        return { id: existingProfile.id, email: params.email };
+      }
+    }
+    throw err;
+  }
 };
 
 export const updateUserProfile = async (

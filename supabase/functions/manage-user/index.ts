@@ -71,10 +71,10 @@ serve(async (req) => {
       if (createError) throw createError
       if (!newUser.user) throw new Error('Failed to create user')
 
-      // Create user_profile
+      // Create or update user_profile (upsert to prevent duplicate key error when trigger created it)
       const { error: profileError } = await adminClient
         .from('user_profiles')
-        .insert({
+        .upsert({
           id: newUser.user.id,
           email,
           full_name,
@@ -83,11 +83,10 @@ serve(async (req) => {
           role,
           is_active: true,
           login_provider: email.endsWith('@fpt.edu.vn') ? 'google' : 'email',
-        })
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'id' })
 
       if (profileError) {
-        // Rollback: delete the auth user
-        await adminClient.auth.admin.deleteUser(newUser.user.id)
         throw profileError
       }
 
