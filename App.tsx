@@ -51,7 +51,24 @@ const AuthenticatedApp: React.FC = () => {
       setAuthError(`Lỗi xác thực: ${decodedError}`);
     }
 
-    // 2. Lấy session hiện tại
+    // 2. Tự động trích xuất và nạp Access Token / Refresh Token từ Hash URL
+    if (hash.includes('access_token=') && hash.includes('refresh_token=')) {
+      const hashParams = new URLSearchParams(hash.substring(1));
+      const access_token = hashParams.get('access_token');
+      const refresh_token = hashParams.get('refresh_token');
+
+      if (access_token && refresh_token) {
+        supabase.auth.setSession({ access_token, refresh_token }).then(({ data, error: sessionErr }) => {
+          if (!sessionErr && data?.session?.user) {
+            setUser(data.session.user);
+            setAuthLoading(false);
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        }).catch(console.error);
+      }
+    }
+
+    // 3. Lấy session hiện tại
     supabase.auth.getSession().then(({ data: { session }, error: sessionError }) => {
       if (sessionError) {
         setAuthError(sessionError.message);
@@ -62,14 +79,13 @@ const AuthenticatedApp: React.FC = () => {
       setAuthLoading(false);
     });
 
-    // 3. Lắng nghe thay đổi trạng thái Auth
+    // 4. Lắng nghe thay đổi trạng thái Auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
         if (session?.user) {
           setAuthError('');
           setUser(session.user);
-          // Dọn dẹp hash URL sau khi đã có session
-          if (window.location.hash || window.location.search.includes('code=')) {
+          if (window.location.hash.includes('access_token=')) {
             window.history.replaceState({}, document.title, window.location.pathname);
           }
         }
@@ -77,6 +93,9 @@ const AuthenticatedApp: React.FC = () => {
         setUser(null);
       }
 
+      if (session?.user) {
+        setUser(session.user);
+      }
       setAuthLoading(false);
     });
 
