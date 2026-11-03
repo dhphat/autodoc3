@@ -163,22 +163,24 @@ DECLARE
   v_provider TEXT;
   v_full_name TEXT;
   v_account_name TEXT;
+  v_email TEXT;
 BEGIN
+  v_email := LOWER(TRIM(NEW.email));
   v_provider := COALESCE(NEW.raw_app_meta_data->>'provider', 'email');
 
   v_full_name := COALESCE(
     NEW.raw_user_meta_data->>'full_name',
     NEW.raw_user_meta_data->>'name',
-    split_part(NEW.email, '@', 1)
+    split_part(v_email, '@', 1)
   );
 
-  v_account_name := split_part(NEW.email, '@', 1);
+  v_account_name := split_part(v_email, '@', 1);
 
   INSERT INTO public.user_profiles (
     id, email, full_name, account_name, role, is_active, department_id, login_provider
   )
   VALUES (
-    NEW.id, NEW.email, v_full_name, v_account_name, 'user', false, null, v_provider
+    NEW.id, v_email, v_full_name, v_account_name, 'user', false, null, v_provider
   )
   ON CONFLICT (id) DO UPDATE
   SET
