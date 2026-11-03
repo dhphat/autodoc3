@@ -3,7 +3,7 @@ import {
   X, Loader2, AlertCircle, Building2, Shield, User, Mail, Info,
 } from 'lucide-react';
 import { UserProfile, Department } from '../../types';
-import { createUser, updateUserProfile } from '../../services/adminService';
+import { inviteUser, updateUserProfile } from '../../services/adminService';
 
 interface AdminUserModalProps {
   isOpen: boolean;
@@ -81,10 +81,9 @@ const AdminUserModal: React.FC<AdminUserModalProps> = ({
           is_active: isActive,
         });
       } else {
-        await createUser({
+        await inviteUser({
           email: email.trim(),
           full_name: fullName.trim(),
-          account_name: accountName.trim() || email.split('@')[0],
           department_id: departmentId || null,
           role,
         });
@@ -109,7 +108,7 @@ const AdminUserModal: React.FC<AdminUserModalProps> = ({
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-800">
-                {isEdit ? 'Chỉnh sửa thông tin tài khoản' : 'Tạo tài khoản người dùng mới'}
+                {isEdit ? 'Chỉnh sửa thông tin tài khoản' : 'Mời người dùng mới'}
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
                 {isEdit ? (editingUser?.email || editingUser?.account_name) : 'Cấp quyền và phòng ban cho nhân viên'}
@@ -138,7 +137,8 @@ const AdminUserModal: React.FC<AdminUserModalProps> = ({
             <div className="flex items-start gap-2.5 bg-blue-50/80 border border-blue-200/70 rounded-xl p-3 text-xs text-blue-800">
               <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
               <span>
-                Người dùng sẽ đăng nhập trực tiếp qua nút <strong>Google (@fpt.edu.vn)</strong> bằng email được cấp bên dưới, không cần mật khẩu.
+                Người dùng được cấp quyền vào FES Contract trên <strong>FES Workspace</strong> và đăng nhập bằng email bên dưới.
+                Tài khoản sẽ xuất hiện trong danh sách (đã kích hoạt, đúng phòng ban và quyền) sau khi người đó đăng nhập lần đầu.
               </span>
             </div>
           )}
@@ -146,7 +146,7 @@ const AdminUserModal: React.FC<AdminUserModalProps> = ({
           {/* Email */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
-              Email (@fpt.edu.vn) <span className="text-red-500">*</span>
+              Email <span className="text-red-500">*</span>
             </label>
             {isEdit ? (
               <div className="relative">
@@ -186,7 +186,8 @@ const AdminUserModal: React.FC<AdminUserModalProps> = ({
             />
           </div>
 
-          {/* Account Name */}
+          {/* Account Name (chỉ khi sửa; khi mời, tên tài khoản lấy theo phần trước @ của email) */}
+          {isEdit && (
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
               Tên tài khoản (Mã nhân viên / Username)
@@ -198,6 +199,7 @@ const AdminUserModal: React.FC<AdminUserModalProps> = ({
               className="w-full text-sm border border-slate-300 rounded-xl px-3.5 py-2.5 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-slate-700"
             />
           </div>
+          )}
 
           {/* Department */}
           <div>
@@ -303,7 +305,7 @@ const AdminUserModal: React.FC<AdminUserModalProps> = ({
             className="px-6 py-2.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 rounded-xl transition-all shadow-sm flex items-center gap-2"
           >
             {isSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            {isEdit ? 'Lưu thay đổi' : 'Tạo tài khoản'}
+            {isEdit ? 'Lưu thay đổi' : 'Gửi lời mời'}
           </button>
         </div>
       </div>

@@ -15,12 +15,14 @@ import { UserProvider, useUser } from './contexts/UserContext';
 import { DocField, DEFAULT_FIELDS, SavedProfile } from './types';
 import { getProfiles, updateProfile, deleteProfile } from './services/supabaseService';
 import { BankData, loadBankData, getUniqueBanks } from './services/bankService';
+import { ensureAppAccess } from './services/workspace-auth';
+import { APP_SLUG, WORKSPACE_USER_TEST_ID, hubLoginHref, submitHubLogout } from './services/hubLinks';
 import type { User } from '@supabase/supabase-js';
 
 type Tab = 'profiles' | 'contracts' | 'acceptance' | 'admin';
 
 const App: React.FC = () => {
-  // Route: /form -> Guest public form
+  // Route: /form -> Guest public form (công khai, không qua cổng đăng nhập workspace)
   if (window.location.pathname === '/form') {
     return <GuestFormPage />;
   }
@@ -28,71 +30,28 @@ const App: React.FC = () => {
   return <AuthenticatedApp />;
 };
 
-const ALLOWED_DOMAINS = ['fpt.edu.vn', 'fe.edu.vn', 'fpt.com.vn', 'fsb.edu.vn'];
-
 const AuthenticatedApp: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState('');
 
   useEffect(() => {
     let isMounted = true;
 
-    const initAuth = async () => {
-      try {
-        const hash = window.location.hash;
-        const query = new URLSearchParams(window.location.search);
+    // Chưa đăng nhập / không có quyền vào FES Contract -> ensureAppAccess chuyển sang hub và không resolve.
+    ensureAppAccess(supabase, APP_SLUG)
+      .then(async () => {
+        const { data, error } = await supabase.auth.getUser();
+        if (error || !data.user) throw error ?? new Error('Không đọc được thông tin tài khoản');
+        if (isMounted) setUser(data.user);
+      })
+      .catch((err: unknown) => {
+        console.error('Workspace access check failed:', err);
+        if (isMounted) setAuthError('Không kiểm tra được quyền truy cập FES Contract. Vui lòng thử lại hoặc đăng nhập lại.');
+      });
 
-        // 1. Kiểm tra lỗi OAuth từ URL
-        let urlError = query.get('error_description') || query.get('error');
-        if (!urlError && hash.includes('error=')) {
-          const hashParams = new URLSearchParams(hash.substring(1));
-          urlError = hashParams.get('error_description') || hashParams.get('error');
-        }
-
-        if (urlError && isMounted) {
-          const decoded = decodeURIComponent(urlError.replace(/\+/g, ' '));
-          setAuthError(`Lỗi xác thực: ${decoded}`);
-        }
-
-        // 2. Lấy session hiện có (Supabase SDK đã tự động khôi phục session từ URL hash hoặc localStorage)
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError) {
-          console.warn('Session error on init:', sessionError.message);
-          // Nếu session bị lỗi/401, xóa token rác trong localStorage để tránh báo lỗi liên tục
-          await supabase.auth.signOut().catch(() => {});
-          if (isMounted) {
-            setUser(null);
-          }
-        } else if (isMounted) {
-          setUser(session?.user ?? null);
-        }
-
-        // 3. Dọn dẹp URL hash sau khi OAuth callback hoàn tất
-        if (hash.includes('access_token=') || hash.includes('code=')) {
-          window.history.replaceState({}, document.title, window.location.pathname);
-        }
-      } catch (err: any) {
-        console.error('Auth initialization error:', err);
-        if (isMounted) setUser(null);
-      } finally {
-        if (isMounted) setAuthLoading(false);
-      }
-    };
-
-    initAuth();
-
-    // 4. Lắng nghe thay đổi trạng thái đăng nhập
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (isMounted) {
-        if (session?.user) {
-          setUser(session.user);
-          setAuthError('');
-        } else if (event === 'SIGNED_OUT') {
-          setUser(null);
-        }
-        setAuthLoading(false);
-      }
+    // Phiên bị đăng xuất ở app khác (cookie chung) -> quay về trang đăng nhập của hub.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') window.location.assign(hubLoginHref());
     });
 
     return () => {
@@ -101,15 +60,15 @@ const AuthenticatedApp: React.FC = () => {
     };
   }, []);
 
-  if (authLoading) {
+  if (authError) return <LoginPage authError={authError} />;
+
+  if (!user) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     );
   }
-
-  if (!user) return <LoginPage authError={authError} />;
 
   return (
     <UserProvider user={user}>
@@ -180,7 +139,7 @@ const MainApp: React.FC<{ user: User }> = ({ user }) => {
       .channel('admin_user_profiles_changes')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'user_profiles' },
+        { event: '*', schema: 'contract', table: 'user_profiles' },
         () => {
           fetchPending();
         }
@@ -251,7 +210,7 @@ const MainApp: React.FC<{ user: User }> = ({ user }) => {
     setSavedProfiles(prev => prev.map(p => p.id === updatedProfile.id ? updatedProfile : p));
   };
 
-  const handleLogout = async () => { await supabase.auth.signOut(); };
+  const handleLogout = () => { submitHubLogout(); };
 
   if (profileLoading) {
     return (
@@ -296,7 +255,7 @@ const MainApp: React.FC<{ user: User }> = ({ user }) => {
               <h1 className="text-xl font-bold text-slate-800">FES Contract</h1>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div data-testid={WORKSPACE_USER_TEST_ID} className="flex items-center gap-3">
             <div className="hidden sm:flex flex-col items-end">
               <span className="text-xs font-medium text-slate-700">{userProfile?.full_name || user.email}</span>
               {userProfile?.department && (

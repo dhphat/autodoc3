@@ -1,6 +1,11 @@
 import { supabase } from './supabaseClient';
 import { SavedProfile, Contract } from '../types';
 
+// Bucket Storage (private) trong project FES Workspace: tên cũ có tiền tố "contract-".
+export const CCCD_BUCKET = 'contract-cccd-images';
+export const TEMPLATES_BUCKET = 'contract-templates';
+const CCCD_PATH_MARKER = `/${CCCD_BUCKET}/`;
+
 // ======================== IMAGE HELPERS ========================
 
 const compressImage = (file: File, maxWidth = 600, quality = 0.6): Promise<Blob> => {
@@ -46,12 +51,12 @@ export const uploadImage = async (
   const path = `${user.id}/${profileId}/${type}_${Date.now()}.jpg`;
 
   const { error } = await supabase.storage
-    .from('cccd-images')
+    .from(CCCD_BUCKET)
     .upload(path, compressed, { contentType: 'image/jpeg', upsert: true });
   if (error) throw error;
 
   const { data: { publicUrl } } = supabase.storage
-    .from('cccd-images')
+    .from(CCCD_BUCKET)
     .getPublicUrl(path);
 
   return publicUrl;
@@ -67,15 +72,15 @@ export const getSecureImageUrl = async (urlOrPath: string | null | undefined, ex
 
   try {
     let storagePath = urlOrPath;
-    if (urlOrPath.includes('/cccd-images/')) {
-      storagePath = urlOrPath.split('/cccd-images/')[1].split('?')[0];
+    if (urlOrPath.includes(CCCD_PATH_MARKER)) {
+      storagePath = urlOrPath.split(CCCD_PATH_MARKER)[1].split('?')[0];
     }
 
     // Nếu không phải đường dẫn Supabase Storage hợp lệ thì trả về nguyên bản
     if (!storagePath) return urlOrPath;
 
     const { data, error } = await supabase.storage
-      .from('cccd-images')
+      .from(CCCD_BUCKET)
       .createSignedUrl(storagePath, expiresIn);
 
     if (error || !data?.signedUrl) {
@@ -101,12 +106,12 @@ export const fetchImageBlobSafe = async (urlOrPath: string | null | undefined): 
   }
 
   // Thử download trực tiếp qua Supabase Storage client (nếu là đường dẫn storage)
-  if (urlOrPath.includes('/cccd-images/')) {
-    const bucketPath = urlOrPath.split('/cccd-images/')[1].split('?')[0];
+  if (urlOrPath.includes(CCCD_PATH_MARKER)) {
+    const bucketPath = urlOrPath.split(CCCD_PATH_MARKER)[1].split('?')[0];
     if (bucketPath) {
       try {
         const { data, error } = await supabase.storage
-          .from('cccd-images')
+          .from(CCCD_BUCKET)
           .download(bucketPath);
         if (!error && data) {
           return data;
@@ -130,9 +135,9 @@ export const fetchImageBlobSafe = async (urlOrPath: string | null | undefined): 
 export const deleteImage = async (url: string): Promise<void> => {
   if (!url) return;
   try {
-    const bucketPath = url.split('/cccd-images/')[1];
+    const bucketPath = url.split(CCCD_PATH_MARKER)[1];
     if (bucketPath) {
-      await supabase.storage.from('cccd-images').remove([bucketPath]);
+      await supabase.storage.from(CCCD_BUCKET).remove([bucketPath]);
     }
   } catch (e) {
     console.warn('Failed to delete old image:', e);
@@ -292,7 +297,7 @@ export const uploadDefaultTemplate = async (
   // Use department-specific path if departmentId provided, otherwise fall back to global default
   const path = departmentId ? `departments/${departmentId}/${type}.docx` : `defaults/${type}.docx`;
   const { error } = await supabase.storage
-    .from('templates')
+    .from(TEMPLATES_BUCKET)
     .upload(path, file, { upsert: true });
   if (error) throw error;
 };
@@ -309,7 +314,7 @@ export const downloadDefaultTemplate = async (
   for (const path of paths) {
     try {
       const { data, error } = await supabase.storage
-        .from('templates')
+        .from(TEMPLATES_BUCKET)
         .download(path);
 
       // If successful, return the file
@@ -338,7 +343,7 @@ export const uploadAcceptanceExcelTemplate = async (
     ? `departments/${departmentId}/acceptance_template.xlsx`
     : `defaults/acceptance_template.xlsx`;
   const { error } = await supabase.storage
-    .from('templates')
+    .from(TEMPLATES_BUCKET)
     .upload(path, file, {
       upsert: true,
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -356,7 +361,7 @@ export const downloadAcceptanceExcelTemplate = async (
   for (const path of paths) {
     try {
       const { data, error } = await supabase.storage
-        .from('templates')
+        .from(TEMPLATES_BUCKET)
         .download(path);
       if (!error && data) {
         return new File(

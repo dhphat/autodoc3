@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { UserProfile } from '../types';
+import { submitHubLogout } from '../services/hubLinks';
 import type { User } from '@supabase/supabase-js';
 
 interface UserContextValue {
@@ -9,7 +10,7 @@ interface UserContextValue {
   isAdmin: boolean;
   departmentId: string | null;
   isLoading: boolean;
-  pendingApproval: boolean; // Google user đang chờ Admin duyệt
+  pendingApproval: boolean; // tài khoản đang chờ Admin duyệt
   refreshProfile: () => Promise<void>;
 }
 
@@ -35,8 +36,20 @@ export const UserProvider: React.FC<{ children: ReactNode; user: User }> = ({ ch
     setPendingApproval(false);
 
     try {
-      // 1. Tìm profile theo id
-      let { data, error } = await supabase
+      // 1. Lấy (hoặc tạo) hồ sơ của chính mình: hồ sơ đã có / theo lời mời của Admin / chờ duyệt.
+      const { data: claimed, error: claimError } = await supabase.rpc('claim_profile');
+      if (claimError) throw claimError;
+
+      const profile = claimed as UserProfile | null;
+      // 2. Tài khoản chưa được kích hoạt (đang chờ Admin phê duyệt)
+      if (!profile || !profile.is_active) {
+        setPendingApproval(true);
+        setUserProfile(null);
+        return;
+      }
+
+      // 3. Đọc kèm phòng ban / cơ sở để hiển thị
+      const { data, error } = await supabase
         .from('user_profiles')
         .select(`
           *,
@@ -47,70 +60,9 @@ export const UserProvider: React.FC<{ children: ReactNode; user: User }> = ({ ch
         `)
         .eq('id', user.id)
         .maybeSingle();
+      if (error) throw error;
 
-      // 2. Nếu không tìm thấy theo id, tìm theo email để liên kết với hồ sơ Admin đã tạo trước
-      if (!data && user.email) {
-        const { data: profileByEmail } = await supabase
-          .from('user_profiles')
-          .select(`
-            *,
-            department:departments(
-              *,
-              campus:campuses(*)
-            )
-          `)
-          .ilike('email', user.email)
-          .maybeSingle();
-
-        if (profileByEmail) {
-          data = profileByEmail;
-        }
-      }
-
-      // 3. Nếu vẫn chưa có hồ sơ (Google user hoàn toàn mới)
-      if (!data) {
-        const fullName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'Chưa cập nhật';
-        const accountName = user.email?.split('@')[0] || null;
-
-        const { data: newProfile, error: upsertErr } = await supabase
-          .from('user_profiles')
-          .upsert({
-            id: user.id,
-            email: user.email,
-            full_name: fullName,
-            account_name: accountName,
-            role: 'user',
-            is_active: false,
-            department_id: null,
-            login_provider: 'google',
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'id' })
-          .select(`
-            *,
-            department:departments(
-              *,
-              campus:campuses(*)
-            )
-          `)
-          .maybeSingle();
-
-        if (!upsertErr && newProfile) {
-          data = newProfile;
-        } else {
-          setPendingApproval(true);
-          setUserProfile(null);
-          return;
-        }
-      }
-
-      // 4. Nếu tài khoản chưa được kích hoạt (Đang chờ Admin phê duyệt)
-      if (data && !data.is_active) {
-        setPendingApproval(true);
-        setUserProfile(null);
-        return;
-      }
-
-      setUserProfile(data as UserProfile);
+      setUserProfile((data ?? profile) as UserProfile);
     } catch (err) {
       console.error('Failed to load user profile:', err);
       // Mặc định cho vào màn hình chờ duyệt nếu có tài khoản auth nhưng chưa có quyền
@@ -129,7 +81,7 @@ export const UserProvider: React.FC<{ children: ReactNode; user: User }> = ({ ch
   if (!isLoading && pendingApproval) {
     return (
       <UserContext.Provider value={{ user, userProfile: null, isAdmin: false, departmentId: null, isLoading: false, pendingApproval: true, refreshProfile: fetchProfile }}>
-        <PendingApprovalScreen email={user.email || ''} onSignOut={() => supabase.auth.signOut()} />
+        <PendingApprovalScreen email={user.email || ''} onSignOut={submitHubLogout} />
       </UserContext.Provider>
     );
   }
@@ -151,9 +103,9 @@ export const UserProvider: React.FC<{ children: ReactNode; user: User }> = ({ ch
   );
 };
 
-// ── Màn hình chờ duyệt (Google user lần đầu) ─────────────────────────────────
+// ── Màn hình chờ duyệt (đăng nhập lần đầu, chưa được Admin kích hoạt) ─────────
 const PendingApprovalScreen: React.FC<{ email: string; onSignOut: () => void }> = ({ email, onSignOut }) => (
-  <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex items-center justify-center p-4">
+  <div data-testid="pending-approval" className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex items-center justify-center p-4">
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
       <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
       <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl" />
@@ -173,7 +125,7 @@ const PendingApprovalScreen: React.FC<{ email: string; onSignOut: () => void }> 
         </p>
         <p className="text-amber-300 font-medium text-sm mb-5">{email}</p>
         <p className="text-blue-200/50 text-sm leading-relaxed mb-6">
-          Tài khoản Google của bạn đã được ghi nhận. Vui lòng liên hệ <strong className="text-white">Admin</strong> để được kích hoạt và phân công phòng ban trước khi sử dụng hệ thống.
+          Tài khoản của bạn đã được ghi nhận. Vui lòng liên hệ <strong className="text-white">Admin</strong> để được kích hoạt và phân công phòng ban trước khi sử dụng hệ thống.
         </p>
 
         <button
