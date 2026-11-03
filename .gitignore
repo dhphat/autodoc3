@@ -10,3 +10,6 @@ dist/
 check_db*.js
 test_db*.js
 
+
+# Supabase CLI local state
+supabase/.temp
