@@ -1,29 +1,6 @@
 import { supabase } from './supabaseClient';
 import { Campus, Department, UserProfile } from '../types';
 
-const MANAGE_USER_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/manage-user`;
-
-// ======================== EDGE FUNCTION CALLER ========================
-
-const callManageUser = async (payload: Record<string, any>) => {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error('Not authenticated');
-
-  const res = await fetch(MANAGE_USER_FUNCTION_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session.access_token}`,
-      'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const json = await res.json();
-  if (!res.ok || json.error) throw new Error(json.error || 'Function call failed');
-  return json;
-};
-
 // ======================== CAMPUS MANAGEMENT ========================
 
 export const getCampuses = async (): Promise<Campus[]> => {
@@ -115,36 +92,23 @@ export const getUsers = async (): Promise<UserProfile[]> => {
   return data as UserProfile[] || [];
 };
 
-export const createUser = async (params: {
+/**
+ * Mời một người vào FES Contract: cấp quyền truy cập app trên FES Workspace và lưu lời mời
+ * (họ tên, phòng ban, quyền). Hồ sơ được tạo và kích hoạt khi người đó đăng nhập lần đầu.
+ */
+export const inviteUser = async (params: {
   email: string;
-  password?: string;
   full_name: string;
-  account_name: string;
   department_id: string | null;
   role: 'admin' | 'user';
-}): Promise<{ id: string; email: string }> => {
-  const email = params.email.trim();
-  const fullName = params.full_name.trim();
-  const accountName = params.account_name?.trim() || email.split('@')[0];
-
-  // 1. Gọi trực tiếp RPC admin_create_user (an toàn 100%, không bị duplicate key)
-  const { data, error } = await supabase.rpc('admin_create_user', {
-    p_email: email,
-    p_full_name: fullName,
-    p_account_name: accountName,
+}): Promise<void> => {
+  const { error } = await supabase.rpc('admin_invite_user', {
+    p_email: params.email.trim().toLowerCase(),
+    p_full_name: params.full_name.trim(),
     p_department_id: params.department_id || null,
-    p_role: params.role || 'user',
+    p_role: params.role,
   });
-
-  if (error) {
-    throw new Error(error.message || 'Không thể tạo tài khoản');
-  }
-
-  if (data?.success) {
-    return { id: data.id, email };
-  }
-
-  throw new Error('Tạo tài khoản thất bại');
+  if (error) throw new Error(error.message || 'Không thể mời người dùng');
 };
 
 export const updateUserProfile = async (
@@ -156,12 +120,4 @@ export const updateUserProfile = async (
     .update(updates)
     .eq('id', id);
   if (error) throw error;
-};
-
-export const resetUserPassword = async (user_id: string, new_password: string): Promise<void> => {
-  return callManageUser({ action: 'update_password', user_id, new_password });
-};
-
-export const deleteUser = async (user_id: string): Promise<void> => {
-  return callManageUser({ action: 'delete', user_id });
 };

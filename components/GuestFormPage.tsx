@@ -1,7 +1,9 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { FileText, Upload, Loader2, CheckCircle, Image as ImageIcon, ChevronDown, HelpCircle, X } from 'lucide-react';
-import { supabase } from '../services/supabaseClient';
+import { createGuestClient } from '../services/supabaseClient';
+import { CCCD_BUCKET } from '../services/supabaseService';
+
 import { DEFAULT_FIELDS, DocField } from '../types';
 import { validateField } from '../utils/validation';
 import { BankData, loadBankData, getUniqueBanks, getBranchesByBank } from '../services/bankService';
@@ -36,6 +38,8 @@ const compressImage = (file: File, maxWidth = 600, quality = 0.6): Promise<Blob>
 const genAbbr = (name: string) => name.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase()).join('');
 
 const GuestFormPage: React.FC = () => {
+  // Form khách luôn chạy với role anon (không dùng phiên FES Workspace nếu có).
+  const supabase = useMemo(() => createGuestClient(), []);
   const [data, setData] = useState<Record<string, string>>({});
   const [images, setImages] = useState<{ front?: File; back?: File; portrait?: File; vneid2_1?: File; vneid2_2?: File }>({});
   const [imagePreviews, setImagePreviews] = useState<{ front?: string; back?: string; portrait?: string; vneid2_1?: string; vneid2_2?: string }>({});
@@ -226,9 +230,9 @@ const GuestFormPage: React.FC = () => {
       const uploadImg = async (file: File, type: string) => {
         const compressed = await compressImage(file);
         const path = `guest/${tempId}/${type}_${Date.now()}.jpg`;
-        const { error } = await supabase.storage.from('cccd-images').upload(path, compressed, { contentType: 'image/jpeg' });
+        const { error } = await supabase.storage.from(CCCD_BUCKET).upload(path, compressed, { contentType: 'image/jpeg' });
         if (error) throw error;
-        const { data: { publicUrl } } = supabase.storage.from('cccd-images').getPublicUrl(path);
+        const { data: { publicUrl } } = supabase.storage.from(CCCD_BUCKET).getPublicUrl(path);
         return publicUrl;
       };
 

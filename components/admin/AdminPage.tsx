@@ -7,7 +7,8 @@ import { useUser } from '../../contexts/UserContext';
 import UserManagement from './UserManagement';
 import DepartmentManagement from './DepartmentManagement';
 import TemplateManagement from './TemplateManagement';
-import { getUsers, getDepartments, updateUserProfile, deleteUser } from '../../services/adminService';
+import { getUsers, getDepartments, updateUserProfile } from '../../services/adminService';
+import { hubAdminUserHref } from '../../services/hubLinks';
 import { UserProfile, Department } from '../../types';
 
 type AdminTab = 'overview' | 'users' | 'departments' | 'templates' | 'approvals';
@@ -296,22 +297,6 @@ const ApprovalTab: React.FC<{
     }
   };
 
-  const handleReject = async (userId: string, name: string) => {
-    if (!window.confirm(`Từ chối và xóa yêu cầu truy cập của "${name}"? Thao tác này không thể hoàn tác.`)) return;
-    setProcessingId(userId);
-    setError('');
-    try {
-      await deleteUser(userId);
-      setSuccessMsg('Đã từ chối tài khoản.');
-      setTimeout(() => setSuccessMsg(''), 3500);
-      onRefresh();
-    } catch (err: any) {
-      setError(err.message || 'Lỗi khi từ chối tài khoản');
-    } finally {
-      setProcessingId(null);
-    }
-  };
-
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20">
@@ -458,14 +443,15 @@ const ApprovalTab: React.FC<{
 
                 {/* 3. Action Buttons */}
                 <div className="flex items-center justify-end gap-3 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => handleReject(u.id, u.full_name)}
-                    disabled={isProcessing}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-rose-200 text-rose-600 bg-rose-50 hover:bg-rose-100/80 font-semibold text-xs transition-all disabled:opacity-50"
+                  <a
+                    href={hubAdminUserHref(u.id)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Từ chối: thu hồi quyền truy cập FES Contract trên trang quản trị FES Workspace"
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-rose-200 text-rose-600 bg-rose-50 hover:bg-rose-100/80 font-semibold text-xs transition-all"
                   >
-                    <XCircle className="w-4 h-4" /> Từ chối
-                  </button>
+                    <XCircle className="w-4 h-4" /> Từ chối (trên Hub)
+                  </a>
 
                   <button
                     type="button"

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Plus, Search, Pencil, Trash2, Loader2, UserCheck, UserX,
+  Plus, Search, Pencil, Loader2, UserCheck, UserX, ExternalLink,
   Shield, User, AlertCircle, Building2, RefreshCw, Clock,
 } from 'lucide-react';
 import { UserProfile, Department } from '../../types';
-import { getDepartments, deleteUser, updateUserProfile } from '../../services/adminService';
+import { getDepartments, updateUserProfile } from '../../services/adminService';
+import { hubAdminUserHref } from '../../services/hubLinks';
 import { useUser } from '../../contexts/UserContext';
 import AdminUserModal from './AdminUserModal';
 
@@ -32,7 +33,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onRefresh, isLoa
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDept, setFilterDept] = useState('');
   const [filterRole, setFilterRole] = useState('');
-  const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isActivating, setIsActivating] = useState<string | null>(null);
   const [error, setError] = useState('');
 
@@ -62,25 +62,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onRefresh, isLoa
 
   const openCreate = () => { setEditingUser(null); setModalOpen(true); };
   const openEdit = (u: UserProfile) => { setEditingUser(u); setModalOpen(true); };
-
-  const handleDelete = async (u: UserProfile) => {
-    if (u.id === currentUser?.id) {
-      setError('Bạn không thể xóa tài khoản của chính mình.');
-      return;
-    }
-    if (!window.confirm(`Xóa tài khoản "${u.full_name}"? Thao tác này không thể hoàn tác.`)) return;
-
-    setIsDeleting(u.id);
-    setError('');
-    try {
-      await deleteUser(u.id);
-      onRefresh();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsDeleting(null);
-    }
-  };
 
   const handleToggleActive = async (u: UserProfile) => {
     if (u.id === currentUser?.id) {
@@ -148,7 +129,6 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onRefresh, isLoa
                 departments={departments}
                 isActivating={isActivating === u.id}
                 onApprove={(deptId) => handleApproveGoogleUser(u, deptId)}
-                onDelete={() => handleDelete(u)}
               />
             ))}
           </div>
@@ -195,7 +175,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onRefresh, isLoa
           onClick={openCreate}
           className="flex items-center gap-1.5 text-sm text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm flex-shrink-0"
         >
-          <Plus className="w-4 h-4" /> Thêm user
+          <Plus className="w-4 h-4" /> Mời user
         </button>
       </div>
 
@@ -297,17 +277,15 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, onRefresh, isLoa
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
-                        <button
-                          onClick={() => handleDelete(u)}
-                          disabled={!!isDeleting || u.id === currentUser?.id}
-                          className="p-1.5 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                          title="Xóa tài khoản"
+                        <a
+                          href={hubAdminUserHref(u.id)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                          title="Khóa / thu hồi quyền truy cập trên trang quản trị FES Workspace"
                         >
-                          {isDeleting === u.id
-                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            : <Trash2 className="w-3.5 h-3.5" />
-                          }
-                        </button>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
                       </div>
                     </td>
                   </tr>
@@ -327,8 +305,7 @@ const PendingUserRow: React.FC<{
   departments: Department[];
   isActivating: boolean;
   onApprove: (deptId: string) => void;
-  onDelete: () => void;
-}> = ({ user, departments, isActivating, onApprove, onDelete }) => {
+}> = ({ user, departments, isActivating, onApprove }) => {
   const [selectedDept, setSelectedDept] = useState('');
 
   return (
@@ -377,13 +354,15 @@ const PendingUserRow: React.FC<{
           Duyệt
         </button>
 
-        <button
-          onClick={onDelete}
+        <a
+          href={hubAdminUserHref(user.id)}
+          target="_blank"
+          rel="noopener noreferrer"
           className="p-1.5 text-red-500 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-          title="Từ chối"
+          title="Từ chối: thu hồi quyền truy cập trên trang quản trị FES Workspace"
         >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
+          <ExternalLink className="w-3.5 h-3.5" />
+        </a>
       </div>
     </div>
   );
