@@ -1,8 +1,8 @@
-// workspace-auth v1 — copied from fes-workspace/templates; do not edit in app repos
+// workspace-auth v2 — copied from fes-workspace/templates; do not edit in app repos
 // Browser workspace auth for Vite SPAs. Copy next to workspace-urls.ts.
 import { createBrowserClient } from '@supabase/ssr';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { WORKSPACE_COOKIE_NAME, hubLoginUrl, hubRequestAccessUrl, workspaceCookieOptions } from './workspace-urls';
+import { hubLoginUrl, hubRequestAccessUrl, workspaceCookieOptions } from './workspace-urls';
 
 function requireEnv(name: string, value: string | undefined): string {
   if (!value) throw new Error(`Missing environment variable ${name}`);
@@ -29,13 +29,17 @@ export function createWorkspaceBrowserClient(
   const url = requireEnv('VITE_SUPABASE_URL', import.meta.env.VITE_SUPABASE_URL);
   const anonKey = requireEnv('VITE_SUPABASE_ANON_KEY', import.meta.env.VITE_SUPABASE_ANON_KEY);
   const db = opts.schema ? { db: { schema: opts.schema } } : {};
+  const cookieOptions = workspaceCookieOptions(
+    opts.nativeStorage ? undefined : workspaceCookieDomain(),
+    import.meta.env.VITE_WORKSPACE_COOKIE_NAME || undefined,
+  );
 
   if (opts.nativeStorage) {
     return createClient(url, anonKey, {
       ...db,
       auth: {
         storage: localStorage,
-        storageKey: WORKSPACE_COOKIE_NAME,
+        storageKey: cookieOptions.name,
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
@@ -46,7 +50,7 @@ export function createWorkspaceBrowserClient(
 
   return createBrowserClient(url, anonKey, {
     ...db,
-    cookieOptions: workspaceCookieOptions(workspaceCookieDomain()),
+    cookieOptions,
   }) as SupabaseClient;
 }
 

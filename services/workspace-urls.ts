@@ -1,6 +1,7 @@
-// workspace-auth v1 — copied from fes-workspace/templates; do not edit in app repos
+// workspace-auth v2 — copied from fes-workspace/templates; do not edit in app repos
 // Framework-independent helpers shared by the hub and every workspace app.
 
+/** Default session cookie name (production). Staging overrides it via *_WORKSPACE_COOKIE_NAME. */
 export const WORKSPACE_COOKIE_NAME = 'sb-fes-auth';
 
 export type WorkspaceCookieOptions = {
@@ -11,10 +12,20 @@ export type WorkspaceCookieOptions = {
   secure: boolean;
 };
 
-/** Cookie options for @supabase/ssr. `domain` is undefined in local dev (host-only, not secure). */
-export function workspaceCookieOptions(domain: string | undefined): WorkspaceCookieOptions {
+const COOKIE_NAME_RE = /^[A-Za-z0-9_-]+$/;
+
+/**
+ * Cookie options for @supabase/ssr. `domain` is undefined in local dev (host-only, not secure).
+ * `name` comes from NEXT_PUBLIC_WORKSPACE_COOKIE_NAME / VITE_WORKSPACE_COOKIE_NAME (optional);
+ * empty or unset means WORKSPACE_COOKIE_NAME. Every app of one environment must use the same name.
+ */
+export function workspaceCookieOptions(domain: string | undefined, name?: string): WorkspaceCookieOptions {
+  const cookieName = name || WORKSPACE_COOKIE_NAME;
+  if (!COOKIE_NAME_RE.test(cookieName)) {
+    throw new Error(`Invalid workspace cookie name "${cookieName}" (allowed: letters, digits, '-', '_')`);
+  }
   return {
-    name: WORKSPACE_COOKIE_NAME,
+    name: cookieName,
     ...(domain !== undefined ? { domain } : {}),
     path: '/',
     sameSite: 'lax',
